@@ -9,9 +9,11 @@
 (define-major-mode lisp-repl-mode lisp-mode
     (:name "REPL"
      :keymap *lisp-repl-mode-keymap*
-     :syntax-table lem-lisp-syntax:*syntax-table*)
+     :syntax-table lem-lisp-syntax:*syntax-table*
+     :mode-hook *lisp-repl-mode-hook*)
   (cond
     ((eq (repl-buffer) (current-buffer))
+     (setf (variable-value 'enable-syntax-highlight) t)
      (repl-reset-input)
      (lem/listener-mode:start-listener-mode (merge-pathnames "history/lisp-repl" (lem-home)))
      (setf (variable-value 'completion-spec) 'repl-completion)
@@ -34,8 +36,8 @@
                    #'open-inspector-by-repl))
 
 (defun context-menu-inspect-printed-object ()
-  (let* ((point (get-point-on-context-menu-open))
-         (id (object-id-at point)))
+  (alexandria:when-let* ((point (get-point-on-context-menu-open))
+                         (id (object-id-at point)))
     (when id
       (lem/context-menu:make-item
        :label "Inspect"
@@ -44,8 +46,8 @@
                    (inspect-printed-object id))))))
 
 (defun context-menu-copy-down-printed-object ()
-  (let* ((point (get-point-on-context-menu-open))
-         (id (object-id-at point)))
+  (alexandria:when-let* ((point (get-point-on-context-menu-open))
+                         (id (object-id-at point)))
     (when id
       (lem/context-menu:make-item
        :label "Copy Down"
@@ -54,8 +56,8 @@
                    (copy-down-to-repl 'micros:get-printed-object-by-id id))))))
 
 (defun context-menu-describe-object ()
-  (let* ((point (get-point-on-context-menu-open))
-         (id (object-id-at point)))
+  (alexandria:when-let* ((point (get-point-on-context-menu-open))
+                         (id (object-id-at point)))
     (when id
       (lem/context-menu:make-item
        :label "Describe"
@@ -66,8 +68,8 @@
                                           id)))))))
 
 (defun context-menu-pretty-print ()
-  (let* ((point (get-point-on-context-menu-open))
-         (id (object-id-at point)))
+  (alexandria:when-let* ((point (get-point-on-context-menu-open))
+                         (id (object-id-at point)))
     (when id
       (lem/context-menu:make-item
        :label "Pretty Print"
@@ -94,6 +96,7 @@
              (context-menu-find-definition)
              (context-menu-find-references)
              (context-menu-hyperspec)
+             (context-menu-browse-class-as-tree)
              (context-menu-inspect-printed-object)
              (context-menu-copy-down-printed-object)
              (context-menu-describe-object)
@@ -232,7 +235,7 @@
   (let ((buffer (ensure-repl-buffer-exist)))
     (push thread (read-string-thread-stack))
     (push tag (read-string-tag-stack))
-    (setf (current-window) (pop-to-buffer buffer))
+    (switch-to-window (pop-to-buffer buffer))
     (buffer-end (current-point))
     (lem/listener-mode:change-input-start-point (current-point))
     (repl-change-read-line-input)))
@@ -263,7 +266,7 @@
   (check-connection)
   (flet ((switch (buffer split-window-p)
            (if split-window-p
-               (setf (current-window) (pop-to-buffer buffer))
+               (switch-to-window (pop-to-buffer buffer))
                (switch-to-buffer buffer))))
     (lem/listener-mode:listener-start
      "*lisp-repl*"
@@ -273,7 +276,7 @@
 (define-command lisp-switch-to-repl-buffer () ()
   (let ((buffer (repl-buffer)))
     (if buffer
-        (setf (current-window) (pop-to-buffer buffer))
+        (switch-to-window (pop-to-buffer buffer))
         (start-lisp-repl))))
 
 (defun copy-down-to-repl (slimefun &rest args)
@@ -329,9 +332,9 @@
       (insert-string point
                      string
                      'object-id id
-                     :attribute (if (eq type :repl-result)
-                                    'repl-result-attribute
-                                    'printed-object-attribute))
+                     :sticky-attribute (if (eq type :repl-result)
+                                           'repl-result-attribute
+                                           'printed-object-attribute))
       (lem/button:apply-button-between-points
        start
        point
@@ -430,7 +433,7 @@
         (attribute
          (setf current-attribute token))
         (string
-         (insert-string point token :attribute current-attribute))))))
+         (insert-string point token :sticky-attribute current-attribute))))))
 
 (define-command backward-prompt () ()
   (when (equal (current-buffer) (repl-buffer))
@@ -498,9 +501,7 @@
       (interactive-eval "(micros:quit-lisp)")))
 
 (define-repl-shortcut change-package ()
-  (let* ((packages (mapcar (lambda (p)
-                             (string-downcase (package-name p)))
-                           (list-all-packages)))
+  (let* ((packages (mapcar #'string-downcase (lisp-eval '(micros:list-all-package-names))))
          (package
            (repl-prompt-for-string
             "Package: "

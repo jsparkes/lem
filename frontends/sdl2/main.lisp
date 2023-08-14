@@ -27,6 +27,8 @@
 (defconstant +display-width+ 100)
 (defconstant +display-height+ 40)
 
+(defvar +lem-x11-wm-class+ "Lem SDL2")
+
 (defmacro with-bindings (bindings &body body)
   `(let ,bindings
      (let ((bt:*default-special-bindings*
@@ -57,6 +59,19 @@
   `(call-with-debug (lambda () (log:debug ,@args))
                     (lambda () ,@body)))
 
+;; this is SDL2 way
+;; if the stable version of SDL is 3, set WM_CLASS is set via hint SDL_HINT_APP_ID
+;;
+;; cf.
+;; - how SDL3 gets WM_CLASS:
+;;     - https://github.com/libsdl-org/SDL/blob/d3f2de7f297d761a7dc5b0dda3c7b5d7bd49eac9/src/video/x11/SDL_x11window.c#L633C40-L633C40
+;; - how to set WM_CLASS in here:
+;;     - SDL_SetHint() function with key SDL_HINT_APP_ID
+;;     - https://wiki.libsdl.org/SDL2/SDL_SetHint
+;;     - https://github.com/libsdl-org/SDL/blob/d3f2de7f297d761a7dc5b0dda3c7b5d7bd49eac9/src/core/unix/SDL_appid.c#L63C45-L63C45
+(defun set-x11-wm-class (classname)
+  (setf (uiop:getenv "SDL_VIDEO_X11_WMCLASS") classname))
+
 (defun create-texture (renderer width height)
   (sdl2:create-texture renderer
                        sdl2:+pixelformat-rgba8888+
@@ -68,7 +83,6 @@
   ()
   (:default-initargs
    :name :sdl2
-   :native-scroll-support nil ; TODO: t
    :redraw-after-modifying-floating-window nil))
 
 (defvar *display*)
@@ -217,6 +231,7 @@
 (defun notify-required-redisplay ()
   (with-renderer ()
     (when (display-redraw-at-least-once-p *display*)
+      (setf (display-redraw-at-least-once-p *display*) nil)
       (sdl2:set-render-target (current-renderer) (display-texture *display*))
       (set-render-color *display* (display-background-color *display*))
       (sdl2:render-clear (current-renderer))
@@ -545,7 +560,25 @@
     :reader view-use-modeline)
    (texture
     :initarg :texture
-    :accessor view-texture)))
+    :accessor view-texture)
+   (last-cursor-x
+    :initform nil
+    :accessor view-last-cursor-x)
+   (last-cursor-y
+    :initform nil
+    :accessor view-last-cursor-y)))
+
+(defmethod last-cursor-x ((view view))
+  (or (view-last-cursor-x view)
+      ;; fallback to v1
+      (* (lem:last-print-cursor-x (view-window view))
+         (char-width))))
+
+(defmethod last-cursor-y ((view view))
+  (or (view-last-cursor-y view)
+      ;; fallback to v1
+      (* (lem:last-print-cursor-y (view-window view))
+         (char-height))))
 
 (defun create-view (window x y width height use-modeline)
   (when use-modeline (incf height))
@@ -773,6 +806,7 @@
                      nil)))))
 
 (defun create-display (function)
+  (set-x11-wm-class +lem-x11-wm-class+)
   (sdl2:with-init (:video)
     (sdl2-ttf:init)
     (sdl2-image:init '(:png))
@@ -977,17 +1011,19 @@
 (defmethod lem-if::will-update-display ((implementation sdl2))
   (with-debug ("will-update-display")
     (with-renderer ()
-      (sdl2:set-render-target (current-renderer) (display-texture *display*)))))
+      (sdl2:set-render-target (current-renderer) (display-texture *display*))
+      (set-color (display-background-color *display*))
+      (sdl2:render-clear (current-renderer)))))
 
 (defun set-input-method ()
   (let* ((view (lem:window-view (lem:current-window)))
-         (cursor-x (lem:last-print-cursor-x (lem:current-window)))
-         (cursor-y (lem:last-print-cursor-y (lem:current-window)))
+         (cursor-x (last-cursor-x view))
+         (cursor-y (last-cursor-y view))
          (text lem-sdl2/keyboard::*textediting-text*)
          (x (+ (* (view-x view) (char-width))
-               (* cursor-x (char-width))))
+               cursor-x))
          (y (+ (* (view-y view) (char-height))
-               (* cursor-y (char-height)))))
+               cursor-y)))
     (sdl2:with-rects ((rect x y (* (char-width) (lem:string-width text)) (char-height)))
       (sdl2-ffi.functions:sdl-set-text-input-rect rect)
       (when (plusp (length text))
@@ -1013,10 +1049,6 @@
       (sdl2:render-copy (current-renderer) (display-texture *display*))
       (set-input-method)
       (update-display *display*))))
-
-(defmethod lem-if:scroll ((implementation sdl2) view n)
-  (with-debug ("lem-if:scroll" view n)
-    ))
 
 (defmethod lem-if:increase-font-size ((implementation sdl2))
   (with-debug ("increase-font-size")

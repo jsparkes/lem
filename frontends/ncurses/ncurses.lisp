@@ -29,7 +29,6 @@
   ()
   (:default-initargs
    :name :ncurses
-   :native-scroll-support nil
    :redraw-after-modifying-floating-window t))
 
 (define-condition exit (editor-condition)
@@ -270,6 +269,18 @@
 (defmethod lem-if:update-foreground ((implementation ncurses) color-name)
   (lem.term:term-set-foreground color-name))
 
+(defmethod lem-if:update-cursor-shape ((implementation ncurses) cursor-type)
+  (uiop:run-program `("printf"
+                      ,(format nil "~C[~D q"
+                               #\Esc
+                               (case cursor-type
+                                 (:box 2)
+                                 (:bar 5)
+                                 (:underline 4)
+                                 (otherwise 2))))
+                    :output :interactive
+                    :ignore-error-status t))
+
 (defmethod lem-if:update-background ((implementation ncurses) color-name)
   (lem.term:term-set-background color-name))
 
@@ -460,9 +471,6 @@
              (charms/ll:wmove scrwin cursor-y cursor-x))))
     (charms/ll:wnoutrefresh scrwin)
     (charms/ll:doupdate)))
-
-(defmethod lem-if:scroll ((implementation ncurses) view n)
-  (charms/ll:wscrl (ncurses-view-scrwin view) n))
 
 (defmethod lem-if:clipboard-paste ((implementation ncurses))
   (lem-ncurses.clipboard:paste))

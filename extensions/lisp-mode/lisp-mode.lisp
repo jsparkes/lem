@@ -57,7 +57,7 @@
                        (lem/detective:make-capture-regex
                         :regex "^\\(in-package "
                         :function #'lem-lisp-mode/detective:capture-reference)
-		       :variable-regex
+                       :variable-regex
                        (lem/detective:make-capture-regex
                         :regex "^(?:\\(defvar |\\(defparameter )"
                         :function #'lem-lisp-mode/detective:capture-reference)))
@@ -81,8 +81,6 @@
 (define-key *lisp-mode-keymap* "C-c M-c" 'lisp-remove-notes)
 (define-key *lisp-mode-keymap* "C-c C-k" 'lisp-compile-and-load-file)
 (define-key *lisp-mode-keymap* "C-c C-c" 'lisp-compile-defun)
-(define-key *lisp-mode-keymap* "C-c Return" 'lisp-macroexpand)
-(define-key *lisp-mode-keymap* "C-c M-m" 'lisp-macroexpand-all)
 (define-key *lisp-mode-keymap* "C-c C-d d" 'lisp-describe-symbol)
 (define-key *lisp-mode-keymap* "C-c C-z" 'lisp-switch-to-repl-buffer)
 (define-key *lisp-mode-keymap* "C-c z" 'lisp-switch-to-repl-buffer)
@@ -154,6 +152,17 @@
                    (lem-lisp-mode/exporter:lisp-add-export
                     (symbol-string-at-point point)))))))
 
+(defun context-menu-browse-class-as-tree ()
+  (let ((point (point-over-symbol-with-menu-opened-p)))
+    (when point
+      (lem/context-menu:make-item
+       :label "Browse class as tree"
+       :callback (lambda (&rest args)
+                   (declare (ignore args))
+                   ;; TODO: resolve forward references
+                   (uiop:symbol-call :lem-lisp-mode/class-browser
+                                     :lisp-browse-class-as-tree))))))
+
 (defun compute-context-menu-items ()
   (remove
    nil
@@ -164,7 +173,8 @@
           (context-menu-find-definition)
           (context-menu-find-references)
           (context-menu-hyperspec)
-          (context-menu-export-symbol)))))
+          (context-menu-export-symbol)
+          (context-menu-browse-class-as-tree)))))
 
 (defun change-current-connection (connection)
   (when (current-connection)
@@ -532,22 +542,6 @@
              (micros:load-file ,filename)))
        :package "CL-USER"))))
 
-(defun get-operator-name ()
-  (with-point ((point (current-point)))
-    (scan-lists point -1 1)
-    (character-offset point 1)
-    (symbol-string-at-point point)))
-
-(define-command lisp-echo-arglist () ()
-  (check-connection)
-  (let ((name (get-operator-name))
-        (package (current-package)))
-    (when name
-      (lisp-eval-async `(micros:operator-arglist ,name ,package)
-                       (lambda (arglist)
-                         (when arglist
-                           (display-message "~A" (ppcre:regex-replace-all "\\s+" arglist " "))))))))
-
 (defun compilation-finished (result)
   (destructuring-bind (notes successp duration loadp fastfile)
       (rest result)
@@ -727,37 +721,6 @@
       (form-offset end 1)
       (points-to-string start end))))
 
-(defun macroexpand-internal (expander)
-  (let* ((self (eq (current-buffer) (get-buffer "*lisp-macroexpand*")))
-         (orig-package-name (buffer-package (current-buffer) "CL-USER"))
-         (p (and self (copy-point (current-point) :temporary))))
-    (lisp-eval-async `(,expander ,(form-string-at-point))
-                     (lambda (string)
-                       (let ((buffer (make-buffer "*lisp-macroexpand*")))
-                         (with-buffer-read-only buffer nil
-                           (unless self (erase-buffer buffer))
-                           (change-buffer-mode buffer 'lisp-mode)
-                           (setf (buffer-package buffer) orig-package-name)
-                           (when self
-                             (move-point (current-point) p)
-                             (kill-sexp))
-                           (insert-string (buffer-point buffer)
-                                          string)
-                           (indent-points (buffer-start-point buffer)
-                                          (buffer-end-point buffer))
-                           (with-pop-up-typeout-window (s buffer)
-                             (declare (ignore s)))
-                           (when self
-                             (move-point (buffer-point buffer) p))))))))
-
-(define-command lisp-macroexpand () ()
-  (check-connection)
-  (macroexpand-internal 'micros:swank-macroexpand-1))
-
-(define-command lisp-macroexpand-all () ()
-  (check-connection)
-  (macroexpand-internal 'micros:swank-macroexpand-all))
-
 (define-command lisp-quickload (system-name)
     ((prompt-for-symbol-name "System: " (buffer-package (current-buffer))))
   (check-connection)
@@ -788,13 +751,16 @@
     (list (make-xref-location :filespec (point-buffer point)
                               :position (position-at-point point)))))
 
+(defun find-definitions-by-name (name)
+  (let ((definitions (lisp-eval `(micros:find-definitions-for-emacs ,name))))
+    (definitions-to-locations definitions)))
+
 (defun find-definitions-default (point)
   (let ((name (or (symbol-string-at-point point)
                   (prompt-for-symbol-name "Edit Definition of: "))))
     (alexandria:when-let (result (find-local-definition point name))
       (return-from find-definitions-default result))
-    (let ((definitions (lisp-eval `(micros:find-definitions-for-emacs ,name))))
-      (definitions-to-locations definitions))))
+    (find-definitions-by-name name)))
 
 (defparameter *find-definitions* '(find-definitions-default))
 
@@ -975,7 +941,7 @@
      (let ((xref-location (source-location-to-xref-location source-location)))
        (go-to-location xref-location
                        (lambda (buffer)
-                         (setf (current-window)
+                         (switch-to-window
                                (pop-to-buffer buffer))))))))
 
 (defun source-location-to-xref-location (location &optional content no-errors)

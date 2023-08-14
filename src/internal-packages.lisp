@@ -64,7 +64,9 @@
   (:export
    :with-current-window
    :with-disable-killring
-   :with-pop-up-typeout-window)
+   :with-pop-up-typeout-window
+   :define-buffer-accessor
+   :define-overlay-accessors)
   ;; color.lisp
   (:export
    :make-color
@@ -79,6 +81,7 @@
    :make-attribute
    :attribute
    :attribute-p
+   :attribute-value
    :ensure-attribute
    :merge-attribute
    :set-attribute
@@ -226,6 +229,7 @@
    :window-use-modeline-p
    :window-redraw
    :current-window
+   :last-focused-window
    :window-list
    :compute-window-list
    :one-window-p
@@ -437,6 +441,7 @@
    :completion-buffer)
   ;; cursors.lisp
   (:export
+   :fake-cursor
    :cursor-saved-column
    :cursor-yank-start
    :cursor-yank-end
@@ -481,7 +486,6 @@
   (:export
    :with-implementation
    :implementation
-   :native-scroll-support
    :redraw-after-modifying-floating-window
    :support-floating-window
    :set-foreground
@@ -514,6 +518,7 @@
    :get-background-color
    :update-foreground
    :update-background
+   :update-cursor-shape
    :display-width
    :display-height
    :display-title
@@ -533,7 +538,6 @@
    :redraw-view-after
    :will-update-display
    :update-display
-   :scroll
    :set-first-view
    :split-window-horizontally
    :split-window-vertically

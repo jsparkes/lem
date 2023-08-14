@@ -17,6 +17,7 @@
            :local-value-attribute
            :catch-tag-attribute
            :*sldb-keymap*
+           :*lisp-sldb-mode-hook*
            :sldb-down
            :sldb-up
            :sldb-details-down
@@ -85,7 +86,8 @@
 
 (define-major-mode sldb-mode lisp-ui-mode
     (:name "SLDB"
-     :keymap *sldb-keymap*))
+     :keymap *sldb-keymap*
+     :mode-hook *lisp-sldb-mode-hook*))
 
 (define-key *sldb-keymap* "n" 'sldb-down)
 (define-key *sldb-keymap* "p" 'sldb-up)
@@ -145,8 +147,7 @@
 
 (defun sldb-setup (thread level condition restarts frames conts)
   (let ((buffer (get-sldb-buffer-create thread)))
-    (let ((window (pop-to-buffer buffer :split-action :negative)))
-      (setf (current-window) window))
+    (switch-to-window (pop-to-buffer buffer :split-action :negative))
     (change-buffer-mode buffer 'sldb-mode)
     (setf (buffer-read-only-p buffer) nil)
     (setf (variable-value 'line-wrap :buffer buffer) nil)
@@ -500,7 +501,7 @@
   (save-excursion
     (lem/language-mode:go-to-location source-location
                                       (lambda (buffer)
-                                        (setf (current-window)
+                                        (switch-to-window
                                               (pop-to-buffer buffer))))
     (lisp-compile-defun)))
 

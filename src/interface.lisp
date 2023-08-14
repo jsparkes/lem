@@ -7,10 +7,6 @@
     :initform (alexandria:required-argument :name)
     :initarg :name
     :reader implementation-name)
-   (native-scroll-support
-    :initform nil
-    :initarg :native-scroll-support
-    :reader native-scroll-support)
    (redraw-after-modifying-floating-window
     :initform nil
     :initarg :redraw-after-modifying-floating-window
@@ -42,6 +38,8 @@
 (defgeneric lem-if:get-background-color (implementation))
 (defgeneric lem-if:update-foreground (implementation color-name))
 (defgeneric lem-if:update-background (implementation color-name))
+(defgeneric lem-if:update-cursor-shape (implementation cursor-type)
+  (:method (implementation cursor-type)))
 (defgeneric lem-if:display-width (implementation))
 (defgeneric lem-if:display-height (implementation))
 (defgeneric lem-if:display-title (implementation))
@@ -64,7 +62,6 @@
 (defgeneric lem-if::will-update-display (implementation)
   (:method (implementation)))
 (defgeneric lem-if:update-display (implementation))
-(defgeneric lem-if:scroll (implementation view n))
 
 (defgeneric lem-if:set-first-view (implementation view)
   (:method (implementation view)))
