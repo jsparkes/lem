@@ -2,14 +2,6 @@
   (:use :cl :lem :lem-lisp-mode/internal))
 (in-package :lem-lisp-mode/misc-commands)
 
-(defun find-symbol-matchies (symbol-name)
-  (let ((symbols '()))
-    (do-all-symbols (s)
-      (when (and (string-equal s symbol-name) (fboundp s))
-        (pushnew s symbols)))
-    symbols))
-
-
 (defun find-utopian-route (point)
   (when (in-string-p point)
     (with-point ((start point)
@@ -54,29 +46,63 @@
   (lem-lisp-syntax:defstruct-to-defclass (current-point)))
 
 
-(defun move-to-deftest-toplevel-form (point)
-  (or (looking-at point "\\(deftest\\s")
-      (progn (lisp-beginning-of-defun point 1)
-             (looking-at point "\\(deftest\\s"))))
-
-(defun get-deftest-name (point)
-  (with-point ((point point))
-    (when (and (move-to-deftest-toplevel-form point)
-               (scan-lists point 1 -1 t)
-               (form-offset point 1)
-               (skip-whitespace-forward point))
-      (with-point ((start point)
-                   (end point))
-        (form-offset end 1)
-        (points-to-string start end)))))
-
 (defparameter *run-test-function-name* "rove:run-test")
+(defparameter *run-suite-test-function-name* "rove:run-suite")
 
-(define-command lisp-run-test () ()
-  (let* ((package-name (buffer-package (current-buffer)))
-         (test-name (get-deftest-name (current-point)))
-         (form-string (format nil "(~A '~A::~A)" *run-test-function-name* package-name test-name)))
-    (start-lisp-repl)
-    (buffer-end (current-point))
-    (insert-string (current-point) form-string)
-    (lem/listener-mode:listener-return)))
+(defun %send-test-reference (package test)
+  (lem-lisp-mode/internal::lisp-switch-to-repl-buffer)
+  (buffer-end (current-point))
+  (insert-string
+   (current-point)
+   (format nil "(~A '~A::~A)"
+           *run-test-function-name*
+           (remove #\#
+                   (remove #\: (lem/detective:reference-name package)))
+           (lem/detective:reference-name test)))
+  (lem/listener-mode:listener-return))
+
+(defun %send-test-suite (suite-package)
+  (lem-lisp-mode/internal::lisp-switch-to-repl-buffer)
+  (buffer-end (current-point))
+  (insert-string
+   (current-point)
+   (format nil "(~A ~A)"
+           *run-suite-test-function-name*
+           (lem/detective:reference-name suite-package)))
+  (lem/listener-mode:listener-return))
+
+(define-command lisp-test-run-buffer () ()
+  (lem/detective::check-change :force t)
+  (alexandria:when-let*
+      ((buffer-references (lem/detective:buffer-references
+                           (current-buffer)))
+       (package (first (lem/detective:references-packages buffer-references)))
+       (test-references
+        (remove-if-not #'(lambda (x)
+                           (string-equal "deftest" x))
+                       (lem/detective:references-misc buffer-references)
+                       :key #'lem/detective:misc-custom-type))
+       (selected-test
+        (lem/detective::%get-reference test-references
+                                       :prompt "Test: ")))
+    (%send-test-reference package selected-test)))
+
+(define-command lisp-test-run-current () ()
+  (lem/detective::check-change :force t)
+  (let* ((buffer-references (lem/detective:buffer-references
+                             (current-buffer)))
+         (package (first (lem/detective:references-packages buffer-references)))
+         (reference (lem/detective::current-reference)))
+    ;;TODO: Make a regex for the test posiblities
+    (if (and (typep reference 'lem/detective:misc-reference)
+             (string-equal (lem/detective:misc-custom-type reference)
+                           "deftest"))
+        (%send-test-reference package reference)
+        (message "Current reference is not a test."))))
+
+(define-command lisp-test-run-suite () ()
+  (lem/detective::check-change)
+  (let* ((buffer-references (lem/detective:buffer-references
+                             (current-buffer)))
+         (package (first (lem/detective:references-packages buffer-references))))
+    (%send-test-suite package)))

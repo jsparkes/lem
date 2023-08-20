@@ -48,6 +48,11 @@
    :set-misc-regex
 
    :buffer-references
+   :references-functions
+   :references-classes
+   :references-packages
+   :references-variables
+   :references-misc
 
    :search-references
 
@@ -132,6 +137,23 @@
                :writer set-misc-regex
                :reader search-misc-regex)))
 
+(defun references-functions (references)
+  (gethash "functions" references))
+
+(defun references-classes (references)
+  (gethash "classes" references))
+
+(defun references-packages (references)
+  (gethash "packages" references))
+
+(defun references-variables (references)
+  (gethash "variables" references))
+
+(defun references-misc (references)
+  (gethash "misc" references))
+
+(defun references-all (references)
+  (alexandria:flatten (alexandria:hash-table-values references)))
 
 (defun buffer-references (buffer)
   (buffer-value buffer 'references))
@@ -156,7 +178,7 @@
                      (misc-regex search-misc-regex))
         search
       (let ((slots
-              (list (cons (cons "functions" function-regex):function-reference)
+              (list (cons (cons "functions" function-regex) :function-reference)
                     (cons (cons "classes" class-regex) :class-reference)
                     (cons (cons "packages" package-regex) :package-reference)
                     (cons (cons "variables" variable-regex) :variable-reference)
@@ -172,14 +194,15 @@
 
 (defgeneric capture-reference (point class))
 
-(defun %get-reference (references)
-  (alexandria:when-let* ((name-references (mapcar #'reference-name references))
-                         (item
-                          (prompt-for-string "Navigate: "
-                                             :completion-function (lambda (x) (completion-strings x name-references))
-
-                                             :test-function (lambda (name)
-                                                              (member name name-references :test #'string=)))))
+(defun %get-reference (references &key (prompt "Navigate: "))
+  (alexandria:when-let*
+      ((name-references (mapcar #'reference-name references))
+       (item
+        (prompt-for-string prompt
+                           :completion-function (lambda (x)
+                                                  (completion-strings x name-references))
+                           :test-function (lambda (name)
+                                            (member name name-references :test #'string=)))))
     (find item references :key #'reference-name :test #'string=)))
 
 (defgeneric navigate-reference (references))
@@ -201,29 +224,53 @@
 (defmethod move-to-reference (reference)
   (message "Not reference available in current buffer."))
 
-(defun check-change ()
-  (cond 
-   ((null (buffer-references (current-buffer)))
-    (search-references 
+(defun check-change (&key (force nil) (buffer (current-buffer)))
+  (cond
+   (force
+    (search-references
+     (variable-value 'lem/language-mode:detective-search :buffer)))
+   ((null (buffer-references buffer))
+    (search-references
      (variable-value 'lem/language-mode:detective-search :buffer)))
 
-   ((not (eql (buffer-value (current-buffer) 'prev-tick)
-              (buffer-modified-tick (current-buffer))))
+   ((not (eql (buffer-value buffer 'prev-tick)
+              (buffer-modified-tick buffer)))
 
-    (setf (buffer-value (current-buffer) 'prev-tick)
-          (buffer-modified-tick (current-buffer)))
-    (search-references (variable-value 'lem/language-mode:detective-search :buffer)))))
+    (setf (buffer-value buffer 'prev-tick)
+          (buffer-modified-tick buffer))
+    (search-references (variable-value 'lem/language-mode:detective-search :buffer buffer)))))
 
-(defun %detective-move (&key (direction :up))
+(defun current-reference (&key (point (current-point)))
+  (let ((closest (%closest-reference))
+        (current-expression
+          (lem:with-point ((p point))
+            (funcall
+             (variable-value 'lem/language-mode:beginning-of-defun-function :buffer)
+             p 1) p)))
+
+    (if  (= (line-number-at-point (car closest))
+              (line-number-at-point current-expression))
+         (find (car closest)
+               (cdr closest)
+               :key #'reference-point :test #'point=)
+      (message "Not inside a reference."))))
+
+(defun %closest-reference (&key (direction :up))
   (let* ((references (buffer-references (current-buffer)))
          (lreferences (alexandria:flatten(alexandria:hash-table-values references)))
          (reference-points (mapcar #'reference-point  lreferences))
          (closest (point-closest (current-point)
-                                           reference-points
-                                           :direction direction )))
-    (if closest
+                                 reference-points
+                                 :direction direction)))
+    (cons closest lreferences)))
+
+(defun %detective-move (&key (direction :up))
+  (let ((closest (%closest-reference :direction direction)))
+    (if (car closest)
         (move-to-reference
-         (find closest lreferences :key #'reference-point :test #'point=))
+         (find (car closest)
+               (cdr closest)
+               :key #'reference-point :test #'point=))
         (message "No found reference."))))
 
 (define-command detective-next () ()
@@ -263,8 +310,6 @@
 (define-command detective-all () ()
   "Prompt for a definition defined in this buffer and move the point to it."
   (check-change)
-  (let* ((references
-          (alexandria:flatten
-           (alexandria:hash-table-values (buffer-references (current-buffer)))))
-        (reference (navigate-reference references)))
-     (move-to-reference reference)))
+  (let* ((references (references-all (buffer-references (current-buffer))))
+         (reference (navigate-reference references)))
+    (move-to-reference reference)))

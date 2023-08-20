@@ -60,6 +60,10 @@
                        :variable-regex
                        (lem/detective:make-capture-regex
                         :regex "^(?:\\(defvar |\\(defparameter )"
+                        :function #'lem-lisp-mode/detective:capture-reference)
+                       :misc-regex
+                       (lem/detective:make-capture-regex
+                        :regex "^\\(deftest "
                         :function #'lem-lisp-mode/detective:capture-reference)))
   (set-syntax-parser lem-lisp-syntax:*syntax-table*
                      (make-tmlanguage-lisp))
@@ -74,7 +78,6 @@
 (define-key *global-keymap* "M-:" 'lisp-eval-string)
 (define-key *lisp-mode-keymap* "C-c M-:" 'lisp-eval-string)
 (define-key *lisp-mode-keymap* "C-M-x" 'lisp-eval-defun)
-(define-key *lisp-mode-keymap* "C-c C-r" 'lisp-eval-region)
 (define-key *lisp-mode-keymap* "C-c C-n" 'lisp-next-compilation-notes)
 (define-key *lisp-mode-keymap* "C-c C-p" 'lisp-previous-compilation-notes)
 (define-key *lisp-mode-keymap* "C-c C-l" 'lisp-load-file)
@@ -420,12 +423,22 @@
       (indent-points (current-point) end))))
 
 (defmethod execute ((mode lisp-mode) (command open-line) argument)
-  (if (not (null argument))
-      (call-next-method)
-      (with-point ((saved-point (current-point)))
-        (insert-character (current-point) #\newline)
-        (indent-line (current-point))
-        (move-point (current-point) saved-point))))
+  (cond ((not (null argument))
+         (call-next-method))
+        ((and (eql #\( (character-at (current-point)))
+              (start-line-p (current-point)))
+         (call-next-method))
+        (t
+         (with-point ((saved-point (current-point)))
+           (insert-character (current-point) #\newline)
+           (indent-line (current-point))
+           (when (blank-line-p (current-point))
+             (with-point ((start (current-point))
+                          (end (current-point)))
+               (line-start start)
+               (line-end end)
+               (delete-between-points start end)))
+           (move-point (current-point) saved-point)))))
 
 (define-command lisp-set-package (package-name) ((read-package-name))
   (check-connection)
@@ -512,17 +525,6 @@
         (if (ppcre:scan "^\\(defvar(?:\\s|$)" string)
             (re-eval-defvar string)
             (interactive-eval string))))))
-
-(define-command lisp-eval-region (start end) ("r")
-  "Execute the region as Lisp code."
-  (check-connection)
-  (eval-with-transcript
-   `(micros:interactive-eval-region
-     ,(points-to-string start end))))
-
-(define-command lisp-eval-buffer () ()
-  "Execute the accessible portion of current buffer as Lisp code."
-  (lisp-eval-region (buffer-start-point (current-buffer)) (buffer-end-point (current-buffer))))
 
 (define-command lisp-load-file (filename)
     ((prompt-for-file "Load File: "

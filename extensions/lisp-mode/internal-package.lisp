@@ -56,7 +56,6 @@
    :lisp-eval-string
    :lisp-eval-last-expression
    :lisp-eval-defun
-   :lisp-eval-region
    :lisp-load-file
    :lisp-remove-notes
    :lisp-compile-and-load-file
@@ -92,6 +91,7 @@
    :lisp-switch-to-repl-buffer
    :write-string-to-repl
    :copy-down-to-repl
+   :send-string-to-listener
    ;; apropos-mode.lisp
    :apropos-headline-attribute
    :*lisp-apropos-mode-keymap*
