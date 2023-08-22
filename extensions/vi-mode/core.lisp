@@ -21,7 +21,8 @@
            :normal
            :insert
            :change-directory
-           :expand-filename-modifiers))
+           :expand-filename-modifiers
+           :kill-region-without-appending))
 (in-package :lem-vi-mode/core)
 
 (defvar *default-cursor-color* nil)
@@ -74,7 +75,12 @@
   (pushnew *modeline-element* (lem:variable-value 'lem:modeline-format :global)))
 
 (defun finalize-vi-modeline ()
-  (modeline-remove-status-list *modeline-element*))
+  (setf (lem:variable-value 'lem:modeline-format :global)
+        (remove-if #'vi-modeline-element-p
+                   (lem:variable-value 'lem:modeline-format :global)))
+  (modeline-remove-status-list *modeline-element*)
+  (set-attribute 'cursor :background *default-cursor-color*)
+  (lem-if:update-cursor-shape (lem-core:implementation) :box))
 
 (defun change-element-by-state (state)
   (setf (element-name *modeline-element*) (format nil " ~A " (state-name state))
@@ -272,3 +278,10 @@
                                          (#\e (or (pathname-type (pathname result))
                                                   "")))))))
                            :simple-calls t))
+
+(defun kill-region-without-appending (start end)
+  "Same as lem:kill-region except this won't append to the existing killring"
+  (when (point< end start)
+    (rotatef start end))
+  (let ((killed-string (delete-character start (count-characters start end))))
+    (copy-to-clipboard-with-killring killed-string)))

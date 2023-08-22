@@ -37,7 +37,11 @@
                "alexandria")
   :components
   ((:module "tests"
+    :depends-on ("utils")
     :components
-    ((:file "motion" :depends-on ("utils"))
-     (:file "utils"))))
+    ((:file "motion")
+     (:file "operator")
+     (:file "visual")))
+   (:file "utils"
+    :pathname "tests/utils"))
   :perform (test-op (op c) (symbol-call :rove '#:run c)))

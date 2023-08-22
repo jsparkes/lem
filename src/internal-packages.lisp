@@ -317,6 +317,8 @@
    :*post-command-hook*
    :command-name
    :this-command
+   :this-command-keys
+   :universal-argument-of-this-command
    :execute
    :call-command
    :all-command-names)
@@ -414,6 +416,8 @@
    :set-overlay-attribute
    :overlay-buffer
    :make-overlay
+   :make-overlay-line-endings
+   :make-overlay-line
    :delete-overlay
    :overlay-put
    :overlay-get
