@@ -8,8 +8,16 @@
         :lem-vi-mode/visual
         :lem-vi-mode/jump-motions
         :lem-vi-mode/commands/utils)
+  (:import-from :lem-vi-mode/states
+                :*command-keymap*
+                :normal
+                :insert)
+  (:import-from :lem-vi-mode/commands/utils
+                :visual-region)
   (:import-from :lem/common/killring
                 :peek-killring-item)
+  (:import-from :lem-vi-mode/utils
+                :kill-region-without-appending)
   (:export :vi-move-to-beginning-of-line/universal-argument-0
            :vi-forward-char
            :vi-backward-char
@@ -81,6 +89,22 @@
            :vi-normal
            :vi-keyboard-quit))
 (in-package :lem-vi-mode/commands)
+
+(defun extract-count-keys (keys)
+  (loop for key in keys
+        for cmd = (lem-core::keymap-find-keybind *command-keymap* key nil)
+        unless (member cmd '(lem/universal-argument:universal-argument-0
+                             lem/universal-argument:universal-argument-1
+                             lem/universal-argument:universal-argument-2
+                             lem/universal-argument:universal-argument-3
+                             lem/universal-argument:universal-argument-4
+                             lem/universal-argument:universal-argument-5
+                             lem/universal-argument:universal-argument-6
+                             lem/universal-argument:universal-argument-7
+                             lem/universal-argument:universal-argument-8
+                             lem/universal-argument:universal-argument-9)
+                       :test 'eq)
+        collect key))
 
 (define-command vi-move-to-beginning-of-line/universal-argument-0 () ()
   (if (mode-active-p (current-buffer) 'universal-argument)
@@ -351,7 +375,9 @@
     (cond
       ((visual-p)
        (let ((visual-line (visual-line-p)))
-         (vi-delete)
+         (multiple-value-bind (beg end type)
+             (visual-region)
+           (vi-delete beg end type))
          (when (and (not visual-line)
                     (member :vi-line type))
            (insert-character (current-point) #\Newline)))
@@ -372,7 +398,9 @@
       (vi-yank-from-clipboard-or-killring)
     (cond
       ((visual-p)
-       (vi-delete)
+       (multiple-value-bind (beg end type)
+           (visual-region)
+         (vi-delete beg end type))
        (when (member :vi-line type)
          (insert-character (current-point) #\Newline))
        (insert-string (current-point) string)
@@ -470,21 +498,52 @@
 (add-hook *enable-hook* 'on-matching-paren)
 (add-hook *disable-hook* 'off-matching-paren)
 
+(defvar *last-search-direction* nil)
+
 (define-command vi-search-forward () ()
+  (setf *last-search-direction* :forward)
   (with-jump-motion
-    (lem/isearch:isearch-forward-regexp "/")))
+    (lem/isearch::isearch-start "/"
+                                (lambda (point string)
+                                  (alexandria:when-let (p (lem/isearch::search-forward-regexp
+                                                           (copy-point lem/isearch::*isearch-start-point* :temporary)
+                                                           string))
+                                    (character-offset p (- (length string)))
+                                    (move-point point p)))
+                                #'lem/isearch::search-forward-regexp
+                                #'lem/isearch::search-backward-regexp
+                                "")))
 
 (define-command vi-search-backward () ()
+  (setf *last-search-direction* :backward)
   (with-jump-motion
     (lem/isearch:isearch-backward-regexp "?")))
 
-(define-command vi-search-next (n) ("p")
+(defun vi-search-repeat-forward (n)
   (with-jump-motion
-    (dotimes (i n) (lem/isearch:isearch-next))))
+    (with-point ((p (current-point)))
+      (vi-forward-char (length lem/isearch::*isearch-string*))
+      (loop repeat n
+            for found = (lem/isearch:isearch-next)
+            unless found
+               do (move-point (current-point) p)
+                  (return)
+            finally
+               (vi-backward-char (length lem/isearch::*isearch-string*))))))
 
-(define-command vi-search-previous (n) ("p")
+(defun vi-search-repeat-backward (n)
   (with-jump-motion
     (dotimes (i n) (lem/isearch:isearch-prev))))
+
+(define-command vi-search-next (n) ("p")
+  (case *last-search-direction*
+    (:forward (vi-search-repeat-forward n))
+    (:backward (vi-search-repeat-backward n))))
+
+(define-command vi-search-previous (n) ("p")
+  (case *last-search-direction*
+    (:forward (vi-search-repeat-backward n))
+    (:backward (vi-search-repeat-forward n))))
 
 (define-command vi-search-forward-symbol-at-point () ()
   (with-jump-motion

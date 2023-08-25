@@ -10,13 +10,13 @@
   (:import-from :lem-core
                 :*this-command-keys*
                 :*input-hook*)
-  (:import-from :lem-vi-mode
-                :vi-mode)
   (:import-from :lem-vi-mode/core
-                :normal
-                :insert
+                :vi-mode
                 :current-state
                 :ensure-state)
+  (:import-from :lem-vi-mode/states
+                :normal
+                :insert)
   (:import-from :lem-vi-mode/visual
                 :visual-line
                 :visual-block
@@ -171,9 +171,12 @@
                   (appendf key-args '(:shift t)))))
              (let ((sym-str (ppcre:scan-to-strings "[^<-]+(?=>$)" key-str)))
                (apply #'make-key :sym (if-let (char (name-char sym-str))
-                                        (if (char= char #\Esc)
-                                            "Escape"
-                                            (string char))
+                                        (case char
+                                          (#\Esc "Escape")
+                                          (#\Return "Return")
+                                          (#\Space "Space")
+                                          (#\Tab "Tab")
+                                          (otherwise (string char)))
                                         sym-str)
                       key-args))))
        keys))
