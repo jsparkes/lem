@@ -9,7 +9,7 @@
         :lem-vi-mode/jump-motions
         :lem-vi-mode/commands/utils)
   (:import-from :lem-vi-mode/states
-                :*command-keymap*
+                :*motion-keymap*
                 :normal
                 :insert)
   (:import-from :lem-vi-mode/commands/utils
@@ -85,6 +85,8 @@
            :vi-open-above
            :vi-jump-back
            :vi-jump-next
+           :vi-a-word
+           :vi-inner-word
            :vi-repeat
            :vi-normal
            :vi-keyboard-quit))
@@ -92,7 +94,7 @@
 
 (defun extract-count-keys (keys)
   (loop for key in keys
-        for cmd = (lem-core::keymap-find-keybind *command-keymap* key nil)
+        for cmd = (lem-core::keymap-find-keybind *motion-keymap* key nil)
         unless (member cmd '(lem/universal-argument:universal-argument-0
                              lem/universal-argument:universal-argument-1
                              lem/universal-argument:universal-argument-2
@@ -155,7 +157,7 @@
 (define-command vi-forward-word-begin (&optional (n 1)) ("p")
   (let ((start-line (line-number-at-point (current-point))))
     (dotimes (i n)
-      (forward-word-begin #'char-type))
+      (forward-word-begin #'word-char-type))
     ;; In operator-pending mode, this motion behaves differently.
     (when (operator-pending-mode-p)
       (with-point ((p (current-point)))
@@ -180,25 +182,25 @@
 
 (define-command vi-backward-word-begin (&optional (n 1)) ("p")
   (dotimes (i n)
-    (backward-word-begin #'char-type)))
+    (backward-word-begin #'word-char-type)))
 
 (define-vi-motion vi-forward-word-end (&optional (n 1))
     (:type :inclusive)
   (dotimes (i n)
-    (forward-word-end #'char-type)))
+    (forward-word-end #'word-char-type)))
 
 (define-command vi-forward-word-begin-broad (&optional (n 1)) ("p")
   (dotimes (i n)
-    (forward-word-begin #'broad-char-type)))
+    (forward-word-begin #'broad-word-char-type)))
 
 (define-command vi-backward-word-begin-broad (&optional (n 1)) ("p")
   (dotimes (i n)
-    (backward-word-begin #'broad-char-type)))
+    (backward-word-begin #'broad-word-char-type)))
 
 (define-vi-motion vi-forward-word-end-broad (&optional (n 1))
     (:type :inclusive)
   (dotimes (i n)
-    (forward-word-end #'broad-char-type)))
+    (forward-word-end #'broad-word-char-type)))
 
 (define-command vi-backward-word-end (&optional (n 1)) ("p")
   (character-offset (current-point) -1)
@@ -702,6 +704,24 @@
         (unless (state= prev-state (current-state))
           (change-state prev-state))
         (fall-within-line (current-point))))))
+
+(define-vi-text-object vi-a-word (count beg end type) ("p" "<v>")
+  (when (member type '(:line :block))
+    (vi-visual-char)
+    (destructuring-bind (new-beg new-end)
+        (visual-range)
+      (setf beg new-beg
+            end new-end)))
+  (a-range-of #'word-char-type count beg end))
+
+(define-vi-text-object vi-inner-word (count beg end type) ("p" "<v>")
+  (when (member type '(:line :block))
+    (vi-visual-char)
+    (destructuring-bind (new-beg new-end)
+        (visual-range)
+      (setf beg new-beg
+            end new-end)))
+  (inner-range-of #'word-char-type count beg end))
 
 (define-command vi-normal () ()
   (change-state 'normal))

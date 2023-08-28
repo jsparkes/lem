@@ -12,11 +12,16 @@
                 :state-modeline-aqua
                 :state-modeline-green
                 :change-element-by-state)
-  (:export :*command-keymap*
+  (:export :*normal-keymap*
+           :*motion-keymap*
            :*insert-keymap*
            :*inactive-keymap*
+           :*operator-keymap*
+           :*outer-text-objects-keymap*
+           :*inner-text-objects-keymap*
            :normal
-           :insert))
+           :insert
+           :operator))
 (in-package :lem-vi-mode/states)
 
 (defmethod state-enabled-hook :after (state)
@@ -25,32 +30,38 @@
 ;;
 ;; Keymaps
 
-(defvar *command-keymap* (make-keymap :name '*command-keymap*
-                                      :parent *global-keymap*))
+(defvar *emacs-keymap* *global-keymap*)
 
-(defvar *inactive-keymap* (make-keymap :parent *global-keymap*))
+(defvar *motion-keymap* (make-keymap :name '*motion-keymap*))
+(defvar *normal-keymap* (make-keymap :name '*normal-keymap*
+                                     :parent *motion-keymap*))
+(defvar *insert-keymap* (make-keymap :name '*insert-keymap*))
+(defvar *operator-keymap* (make-keymap :name '*operator-keymap*))
+(defvar *outer-text-objects-keymap* (make-keymap :name '*outer-text-objects-keymap*))
+(defvar *inner-text-objects-keymap* (make-keymap :name '*inner-text-objects-keymap*))
 
-(defvar *insert-keymap* (make-keymap :name '*insert-keymap*
-                                     :parent *global-keymap*))
+(defvar *inactive-keymap* (make-keymap))
 
 ;;
 ;; Normal state
 
 (define-vi-state normal () ()
   (:default-initargs
-   :keymap *command-keymap*
-   :modeline-color 'state-modeline-yellow))
+   :name "NORMAL"
+   :modeline-color 'state-modeline-yellow
+   :keymaps (list *normal-keymap*)))
 
 ;;
 ;; Insert state
 
 (define-vi-state insert () ()
   (:default-initargs
+   :name "INSERT"
    :message "-- INSERT --"
    :cursor-color "IndianRed"
    :cursor-type :bar
    :modeline-color 'state-modeline-aqua
-   :keymap *insert-keymap*))
+   :keymaps (list *insert-keymap*)))
 
 ;;
 ;; Ex state
@@ -59,7 +70,14 @@
   (:default-initargs
    :name "COMMAND"
    :modeline-color 'state-modeline-green
-   :keymap *inactive-keymap*))
+   :keymaps (list *inactive-keymap*)))
+
+;;
+;; Operator-pending state
+
+(define-vi-state operator () ()
+  (:default-initargs
+   :keymaps (list *operator-keymap* *normal-keymap*)))
 
 ;;
 ;; Setup hooks
