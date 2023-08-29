@@ -118,7 +118,8 @@
          (max-offset (- (length (line-string p))
                         (point-charpos p))))
     (character-offset p (min n max-offset))
-    (when (<= max-offset n)
+    (when (and (<= max-offset n)
+               (not (bolp p)))
       (character-offset p *cursor-offset*))))
 
 (define-command vi-backward-char (&optional (n 1)) ("p")
@@ -155,7 +156,8 @@
     (bolp p)))
 
 (define-command vi-forward-word-begin (&optional (n 1)) ("p")
-  (let ((start-line (line-number-at-point (current-point))))
+  (let ((start-line (line-number-at-point (current-point)))
+        (origin (copy-point (current-point))))
     (dotimes (i n)
       (forward-word-begin #'word-char-type))
     ;; In operator-pending mode, this motion behaves differently.
@@ -167,7 +169,8 @@
         ;;     baz
         ;; 'dw' deletes only the 'bar', instead of deleting to the beginning of the next word.
         (skip-whitespace-backward p t)
-        (when (bolp p)
+        (when (and (point< origin p)
+                   (bolp p))
           (line-offset p -1)
           (line-end p)
           (loop while (and (< start-line
