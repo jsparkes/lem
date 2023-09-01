@@ -2,7 +2,7 @@
   (:use :cl
         :lem)
   (:import-from :lem-vi-mode/core
-                :define-vi-state
+                :define-state
                 :*enable-hook*
                 :*disable-hook*
                 :change-state
@@ -17,11 +17,13 @@
            :*insert-keymap*
            :*inactive-keymap*
            :*operator-keymap*
+           :*replace-state-keymap*
            :*outer-text-objects-keymap*
            :*inner-text-objects-keymap*
            :normal
            :insert
-           :operator))
+           :operator
+           :replace-state))
 (in-package :lem-vi-mode/states)
 
 (defmethod state-enabled-hook :after (state)
@@ -37,18 +39,22 @@
                                      :parent *motion-keymap*))
 (defvar *insert-keymap* (make-keymap :name '*insert-keymap*))
 (defvar *operator-keymap* (make-keymap :name '*operator-keymap*))
+(defvar *replace-state-keymap* (make-keymap :name '*replace-state-keymap*
+                                            :undef-hook 'return-last-read-char))
 (defvar *outer-text-objects-keymap* (make-keymap :name '*outer-text-objects-keymap*))
 (defvar *inner-text-objects-keymap* (make-keymap :name '*inner-text-objects-keymap*))
 
 (defvar *inactive-keymap* (make-keymap))
 
+(define-command return-last-read-char () ()
+  (key-to-char (first (lem-core:last-read-key-sequence))))
+
 ;;
 ;; Normal state
 
-(define-vi-state normal () ()
+(define-state normal () ()
   (:default-initargs
    :name "NORMAL"
-   :cursor-color "IndianRed"
    :cursor-type :box
    :modeline-color 'state-modeline-yellow
    :keymaps (list *normal-keymap*)))
@@ -56,10 +62,9 @@
 ;;
 ;; Insert state
 
-(define-vi-state insert () ()
+(define-state insert () ()
   (:default-initargs
    :name "INSERT"
-   :message "-- INSERT --"
    :cursor-color "IndianRed"
    :cursor-type :bar
    :modeline-color 'state-modeline-aqua
@@ -68,7 +73,7 @@
 ;;
 ;; Ex state
 
-(define-vi-state vi-modeline () ()
+(define-state vi-modeline () ()
   (:default-initargs
    :name "COMMAND"
    :modeline-color 'state-modeline-green
@@ -77,9 +82,17 @@
 ;;
 ;; Operator-pending state
 
-(define-vi-state operator () ()
+(define-state operator (normal) ()
   (:default-initargs
    :keymaps (list *operator-keymap* *normal-keymap*)))
+
+;;
+;; Replace state
+
+(define-state replace-state (normal) ()
+  (:default-initargs
+   :cursor-type :underline
+   :keymaps (list *replace-state-keymap*)))
 
 ;;
 ;; Setup hooks

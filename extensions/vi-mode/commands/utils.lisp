@@ -15,7 +15,10 @@
                 :make-range
                 :range-beginning
                 :range-end
-                :range-type)
+                :range-type
+                :operator-abort
+                :text-object-abort
+                :text-object-abort-range)
   (:import-from :lem-vi-mode/states
                 :operator)
   (:import-from :lem-vi-mode/jump-motions
@@ -39,9 +42,9 @@
            :operator-pending-mode-p
            :read-universal-argument
            :*cursor-offset*
-           :define-vi-motion
-           :define-vi-operator
-           :define-vi-text-object))
+           :define-motion
+           :define-operator
+           :define-text-object-command))
 (in-package :lem-vi-mode/commands/utils)
 
 (defvar *cursor-offset* -1)
@@ -87,7 +90,8 @@
   ;;   when operator-pending state is implemented.
   (let ((*operator-pending-mode* t)
         (*this-motion-command* nil))
-    (call-next-method)))
+    (handler-case (call-next-method)
+      (operator-abort ()))))
 
 (defvar *vi-origin-point*)
 
@@ -103,22 +107,20 @@
        (second (ensure-list (second arg-list)))))
     (t (values arg-list '("P") nil))))
 
-(defmacro define-vi-motion (name arg-list (&key type jump (repeat :motion)) &body body)
+(defmacro define-motion (name arg-list arg-descriptors (&key type jump (repeat :motion) (default-n-arg 1)) &body body)
   (check-type type (or null (member :inclusive :exclusive :line :block)))
   (check-type jump boolean)
-  (multiple-value-bind (arg-list arg-descriptor default-n-arg)
-      (parse-motion-arg-list arg-list)
-    `(define-command (,name (:advice-classes vi-motion)
-                            (:initargs
-                             :type ,(or type :exclusive)
-                             :repeat ,repeat
-                             :default-n-arg ,default-n-arg))
-       ,arg-list ,arg-descriptor
-       (with-point ((*vi-origin-point* (current-point)))
-         (,(if jump 'with-jump-motion 'progn)
-           ,@body)))))
+  `(define-command (,name (:advice-classes vi-motion)
+                          (:initargs
+                           :type ,(or type :exclusive)
+                           :repeat ,repeat
+                           :default-n-arg ,default-n-arg))
+       ,arg-list ,arg-descriptors
+     (with-point ((*vi-origin-point* (current-point)))
+       (,(if jump 'with-jump-motion 'progn)
+        ,@body))))
 
-(defun call-vi-motion-command (command n)
+(defun call-motion-command (command n)
   (let* ((command (ensure-command command))
          (n (or n
                 (typecase command
@@ -137,7 +139,7 @@
                (setf *this-motion-command* command)
                (let ((*cursor-offset* 0))
                  (save-excursion
-                   (let ((retval (call-vi-motion-command command uarg)))
+                   (let ((retval (call-motion-command command uarg)))
                      (typecase retval
                        (range
                         (values (range-beginning retval)
@@ -211,7 +213,7 @@
       (when move-point
         (move-point (current-point) start)))))
 
-(defun call-define-vi-operator (fn &key keep-visual restore-point)
+(defun call-define-operator (fn &key keep-visual restore-point)
   (with-point ((*vi-origin-point* (current-point)))
     (unwind-protect (funcall fn)
       (when restore-point
@@ -239,37 +241,46 @@
                      `(multiple-value-list ,arg-descriptor)))
                arg-descriptors))))
 
-(defmacro define-vi-operator (name arg-list arg-descriptors
-                              (&key motion keep-visual (move-point t) (repeat t) restore-point)
-                              &body body)
+(defmacro define-operator (name arg-list arg-descriptors
+                           (&key motion keep-visual (move-point t) (repeat t) restore-point)
+                           &body body)
   `(define-command (,name (:advice-classes vi-operator)
                           (:initargs :repeat ,repeat)) ,arg-list
        (,(parse-arg-descriptors arg-descriptors :motion motion :move-point move-point))
-     (call-define-vi-operator (lambda () ,@body)
+     (call-define-operator (lambda () ,@body)
                               :keep-visual ,keep-visual
                               :restore-point ,restore-point)))
 
-(defun call-define-vi-text-object (fn)
-  (flet ((expand-visual-range (p1 p2)
-           (destructuring-bind (vstart vend)
-               (visual-range)
-             (let ((forward (point<= vstart vend)))
-               (setf (visual-range)
-                     (if forward
-                         (list (point-min p1 vstart)
-                               (point-max p2 vend))
-                         (list (point-max p1 vstart)
-                               (point-min p2 vend))))))))
-    (multiple-value-bind (range aborted)
-        (funcall fn)
-      (if (visual-p)
-          (expand-visual-range (range-beginning range)
-                               (range-end range))
-          (unless aborted
-            range)))))
+(defun call-define-text-object-command (fn &key expand-selection)
+  (flet ((expand-visual-range (range)
+           (let ((p1 (range-beginning range))
+                 (p2 (range-end range)))
+             (destructuring-bind (vstart vend)
+                 (visual-range)
+               (let ((forward (point<= vstart vend)))
+                 (setf (visual-range)
+                       (if forward
+                           (list (point-min p1 vstart)
+                                 (point-max p2 vend))
+                           (list (point-max p1 vstart)
+                                 (point-min p2 vend)))))))))
+    (handler-bind ((text-object-abort
+                     (lambda (e)
+                       (when (visual-p)
+                         (expand-visual-range (text-object-abort-range e))
+                         (return-from call-define-text-object-command)))))
+      (let ((range (funcall fn)))
+        (when (visual-p)
+          (if expand-selection
+              (expand-visual-range range)
+              (setf (visual-range)
+                    (list (range-beginning range) (range-end range)))))
+        range))))
 
-(defmacro define-vi-text-object (name arg-list arg-descriptors
-                                 &body body)
+(defmacro define-text-object-command (name arg-list arg-descriptors (&key expand-selection)
+                                      &body body)
   `(define-command (,name (:advice-classes vi-text-object)) ,arg-list
        (,(parse-arg-descriptors arg-descriptors))
-     (call-define-vi-text-object (lambda () ,@body))))
+     (call-define-text-object-command
+      (lambda () ,@body)
+      :expand-selection ,expand-selection)))

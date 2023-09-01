@@ -4,32 +4,45 @@
         :lem-vi-mode/core
         :lem-vi-mode/ex)
   (:import-from :lem-vi-mode/options
-                :vi-option-value)
+                :option-value)
   (:import-from :lem-vi-mode/commands
                 :vi-open-below
                 :vi-open-above)
   (:import-from :lem-vi-mode/commands/utils
-                :fall-within-line)
+                :fall-within-line
+                :define-motion
+                :define-operator
+                :define-text-object-command)
   (:import-from :lem-vi-mode/states
                 :normal
                 :insert
                 :*motion-keymap*
                 :*normal-keymap*
-                :*insert-keymap*)
+                :*insert-keymap*
+                :*inner-text-objects-keymap*
+                :*outer-text-objects-keymap*
+                :*operator-keymap*)
   (:import-from :lem-vi-mode/visual
                 :*visual-keymap*)
   (:import-from :alexandria
                 :appendf)
   (:export :vi-mode
-           :define-vi-state
+           :define-state
+           :define-motion
+           :define-operator
+           :define-text-object-command
            :*motion-keymap*
            :*normal-keymap*
            :*insert-keymap*
            :*visual-keymap*
+           :*operator-keymap*
            :*ex-keymap*
+           :*inner-text-objects-keymap*
+           :*outer-text-objects-keymap*
            :normal
            :insert
-           :vi-option-value))
+           :change-state
+           :option-value))
 (in-package :lem-vi-mode)
 
 (defmethod post-command-hook ((state normal))

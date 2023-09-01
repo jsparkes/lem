@@ -26,7 +26,9 @@
            :visual-yank
            :visual-kill
            :vi-visual-insert
-           :vi-visual-append))
+           :vi-visual-append
+           :vi-visual-swap-points
+           :vi-visual-opposite-side))
 (in-package :lem-vi-mode/visual)
 
 (defvar *start-point* nil)
@@ -34,25 +36,22 @@
 
 (defvar *visual-keymap* (make-keymap :name '*visual-keymap*))
 
-(define-vi-state visual (vi-state) ()
+(define-state visual (vi-state) ()
   (:default-initargs
-   :message "-- VISUAL --"
    :modeline-color 'state-modeline-orange
    :keymaps (list *visual-keymap* *motion-keymap* *normal-keymap*)))
 
-(define-vi-state visual-char (visual)
+(define-state visual-char (visual)
   ()
   (:default-initargs :name "VISUAL"))
 
-(define-vi-state visual-line (visual) ()
+(define-state visual-line (visual) ()
   (:default-initargs
-   :name "V-LINE"
-   :message "-- VISUAL LINE --"))
+   :name "V-LINE"))
 
-(define-vi-state visual-block (visual) ()
+(define-state visual-block (visual) ()
   (:default-initargs
-   :name "V-BLOCK"
-   :message "-- VISUAL BLOCK --"))
+   :name "V-BLOCK"))
 
 (defmethod state-enabled-hook :after ((state visual))
   (setf *start-point* (copy-point (current-point))))
@@ -98,13 +97,17 @@
 (defmethod state-setup ((state visual-block))
   (with-point ((start *start-point*)
                (end (current-point)))
-    (when (point< end start)
-      (rotatef start end))
-    (character-offset end 1)
     (let ((start-column (point-column start))
           (end-column (point-column end)))
-      (unless (< start-column end-column)
-        (rotatef start-column end-column))
+      (if (< end-column start-column)
+          ;; left-top or left-bottom
+          (progn
+            (character-offset start 1)
+            (incf start-column))
+          ;; right-top or right-bottom
+          (progn
+            (character-offset end 1)
+            (incf end-column)))
       (apply-region-lines start end
                           (lambda (p)
                             (with-point ((s p) (e p))
@@ -237,3 +240,16 @@
                               (rotatef start end))
                             (insert-string start str))))
     (vi-visual-end)))
+
+(define-command vi-visual-swap-points () ()
+  (with-point ((start *start-point*))
+    (move-point *start-point* (current-point))
+    (move-point (current-point) start)))
+
+(define-command vi-visual-opposite-side () ()
+  (if (visual-block-p)
+      (let ((start-col (point-charpos *start-point*))
+            (end-col (point-charpos (current-point))))
+        (move-to-column *start-point* end-col)
+        (move-to-column (current-point) start-col))
+      (vi-visual-swap-points)))

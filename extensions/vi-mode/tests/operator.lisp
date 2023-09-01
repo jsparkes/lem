@@ -79,7 +79,20 @@
         (ok (buf= "[b]ar")))
       (with-vi-buffer (#?"[]\n foo bar\n")
         (cmd "diw")
-        (ok (buf= #?"[]\n foo bar\n"))))))
+        (ok (buf= #?"[]\n foo bar\n"))))
+    (testing "di\""
+      (with-vi-buffer (" \"f[o]o\"  ")
+        (cmd "di\"")
+        (ok (buf= " \"[\"]  "))))))
+
+(deftest vi-change-whole-line
+  (with-fake-interface ()
+    (with-vi-buffer (#?"a[b]c\ndef\n")
+      (cmd "S")
+      (ok (buf= #?"[]\ndef\n")))
+    (with-vi-buffer (#?"a[b]c\ndef\n")
+      (cmd "2S")
+      (ok (buf= #?"[]\n")))))
 
 (deftest vi-join-line
   (with-fake-interface ()

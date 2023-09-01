@@ -13,7 +13,7 @@
            :*enable-repeat-recording*
            :vi-state
            :vi-mode
-           :define-vi-state
+           :define-state
            :current-state
            :state=
            :change-state
@@ -36,12 +36,15 @@
            :make-range
            :range-beginning
            :range-end
-           :range-type))
+           :range-type
+           :operator-abort
+           :text-object-abort
+           :text-object-abort-range))
 (in-package :lem-vi-mode/core)
 
 (defvar *last-repeat-keys* '())
 
-(defvar *default-cursor-color* nil)
+(defvar *default-cursor-color* "#ffb472")
 
 (defvar *enable-hook* '())
 (defvar *disable-hook* '())
@@ -68,10 +71,6 @@
   ((name :initarg :name
          :initform nil
          :reader state-name)
-   (message
-    :initarg :message
-    :initform nil
-    :reader state-message)
    (cursor-type
     :initarg :cursor-type
     :initform :box
@@ -100,7 +99,7 @@
        (eq (state-name state1) (state-name state2))))
 
 ;;; vi-state methods
-(defmacro define-vi-state (name direct-super-classes direct-slot-specs &rest options)
+(defmacro define-state (name direct-super-classes direct-slot-specs &rest options)
   (let ((cleaned-super-classes (if (null direct-super-classes) '(vi-state) direct-super-classes)))
     `(progn
        (assert (find 'vi-state ',cleaned-super-classes :test #'(lambda (expected-class class) (closer-mop:subclassp class expected-class))) () "At least one of the direct-super-classes should be vi-state or a subclass of vi-state!")
@@ -116,12 +115,8 @@
 (defgeneric post-command-hook (state)
   (:method ((state vi-state))))
 
-(defgeneric state-enabled-hook (state))
-
-(defmethod state-enabled-hook ((state vi-state))
-  (let ((msg (state-message state)))
-    (unless (null msg)
-      (message msg))))
+(defgeneric state-enabled-hook (state)
+  (:method ((state vi-state))))
 
 (defgeneric state-disabled-hook (state))
 
@@ -159,7 +154,8 @@
   (let ((state (ensure-state name)))
     (setf *current-state* state)
     (state-enabled-hook state)
-    (set-attribute 'cursor :background (state-cursor-color state))))
+    (set-attribute 'cursor
+                   :background (or (state-cursor-color state) *default-cursor-color*))))
 
 (defmacro with-state (state &body body)
   (with-gensyms (old-state)
@@ -219,3 +215,9 @@
   beginning
   end
   type)
+
+(define-condition operator-abort () ())
+
+(define-condition text-object-abort (operator-abort)
+  ((range :initarg :range
+          :reader text-object-abort-range)))

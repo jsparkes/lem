@@ -6,13 +6,15 @@
                "parse-number"
                "cl-package-locks"
                "alexandria"
-               "split-sequence")
+               "split-sequence"
+               "lem-lisp-mode")
   :components ((:file "core")
                (:file "options" :depends-on ("utils"))
-               (:file "word" :depends-on ("core" "options"))
+               (:file "word" :depends-on ("options"))
                (:file "modeline" :depends-on ("core"))
                (:file "states" :depends-on ("core" "modeline"))
                (:file "visual" :depends-on ("core" "states"))
+               (:file "text-objects" :depends-on ("core" "visual" "word"))
                (:file "jump-motions")
                (:module "commands-utils"
                 :pathname "commands"
@@ -46,6 +48,7 @@
      (:file "operator")
      (:file "visual")
      (:file "commands")
+     (:file "text-objects")
      (:file "options")))
    (:file "utils"
     :pathname "tests/utils"))
