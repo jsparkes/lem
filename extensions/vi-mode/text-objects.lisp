@@ -73,7 +73,7 @@
 (defmethod a-range-of (object (state visual) count)
   (destructuring-bind (beg end)
       (visual-range)
-    (when (point= beg end)
+    (when (point= beg (current-point))
       (return-from a-range-of
         (call-next-method)))
     (let ((direction (cond
@@ -118,7 +118,7 @@
                (end (current-point)))
     (if (on-object-p object beg)
         (slurp-object object beg :backward)
-        (skip-chars-backward beg '(#\Space #\Tab #\Newline)))
+        (skip-chars-backward beg '(#\Space #\Tab)))
     (dotimes (i count)
       (when (or (end-buffer-p end)
                 (char= (character-at end) #\Newline))
@@ -132,7 +132,7 @@
 (defmethod inner-range-of (object (state visual) count)
   (destructuring-bind (beg end)
       (visual-range)
-    (when (point= beg end)
+    (when (point= beg (current-point))
       (return-from inner-range-of (call-next-method)))
 
     (let ((direction (cond

@@ -45,12 +45,28 @@
            :option-value))
 (in-package :lem-vi-mode)
 
+(define-command adjust-window-scroll () ()
+  (let* ((window (lem:current-window))
+         (window-height (lem-core::window-height-without-modeline window))
+         (cursor-y (lem:window-cursor-y window))
+         (window-scroll-offset (option-value "scrolloff"))
+         (scroll-offset (min (floor (/ window-height 2)) window-scroll-offset)))
+    (cond
+      ((< cursor-y scroll-offset)
+       (lem:window-scroll window (- cursor-y scroll-offset)))
+      ((and (< (- window-height scroll-offset) cursor-y)
+            (< (- window-height cursor-y)
+               (- (lem:buffer-nlines (lem:current-buffer))
+                  (lem:line-number-at-point (lem:current-point)))))
+       (lem:window-scroll window (- cursor-y (- window-height scroll-offset)))))))
+
 (defmethod post-command-hook ((state normal))
   (when *enable-repeat-recording*
     (let ((command (this-command)))
       (when (and (typep command 'vi-command)
                  (eq (vi-command-repeat command) t))
         (setf *last-repeat-keys* (vi-this-command-keys)))))
+  (adjust-window-scroll)
   (fall-within-line (current-point)))
 
 (defmethod post-command-hook ((state insert))
@@ -60,22 +76,13 @@
                        (eq (vi-command-repeat command) nil))
                   (eq (command-name (this-command)) 'vi-end-insert))
         (appendf *last-repeat-keys*
-                 (vi-this-command-keys))))
-    (when (and (member (command-name command)
-                       '(self-insert
-                         ;; XXX: lem:call-command always adds a undo boundary
-                         ;;  Delete the last boundary after these commands executed.
-                         vi-open-below
-                         vi-open-above)
-                       :test 'eq)
-               (eq :separator (lem-base::last-edit-history (current-buffer))))
-      (vector-pop (lem-base::buffer-edit-history (current-buffer))))))
+                 (vi-this-command-keys))))))
 
 (defmethod state-enabled-hook ((state insert))
   (when *enable-repeat-recording*
     (setf *last-repeat-keys* nil))
-  (buffer-undo-boundary))
+  (buffer-undo-boundary)
+  (buffer-disable-undo-boundary (lem:current-buffer)))
 
 (defmethod state-disabled-hook ((state insert))
-  (unless (eq :separator (lem-base::last-edit-history (current-buffer)))
-    (buffer-undo-boundary)))
+  (buffer-enable-undo-boundary (lem:current-buffer)))

@@ -124,10 +124,7 @@
   (let* ((p (current-point))
          (max-offset (- (length (line-string p))
                         (point-charpos p))))
-    (character-offset p (min n max-offset))
-    (when (and (<= max-offset n)
-               (not (bolp p)))
-      (character-offset p *cursor-offset*))))
+    (character-offset p (min n max-offset))))
 
 (define-command vi-backward-char (&optional (n 1)) ("p")
   (let ((p (current-point)))
@@ -138,27 +135,23 @@
 
 (define-motion vi-next-line (&optional (n 1)) ("p")
     (:type :line)
-  (next-logical-line n)
-  (fall-within-line (current-point)))
+  (next-logical-line n))
 
 (define-motion vi-line (&optional (n 1)) ("p")
     ()
-  (next-logical-line (1- n)))
+  (line-offset (current-point) (1- n)))
 
 (define-motion vi-next-display-line (&optional (n 1)) ("p")
     (:type :line)
-  (next-line n)
-  (fall-within-line (current-point)))
+  (next-line n))
 
 (define-motion vi-previous-line (&optional (n 1)) ("p")
     (:type :line)
-  (previous-logical-line n)
-  (fall-within-line (current-point)))
+  (previous-logical-line n))
 
 (define-motion vi-previous-display-line (&optional (n 1)) ("p")
     (:type :line)
-  (previous-line n)
-  (fall-within-line (current-point)))
+  (previous-line n))
 
 (defun on-only-space-line-p (point)
   (with-point ((p point))
@@ -232,7 +225,7 @@
 
 (define-command vi-move-to-end-of-line (&optional (n 1)) ("p")
   (vi-line n)
-  (goto-eol (current-point)))
+  (line-end (current-point)))
 
 (define-command vi-move-to-last-nonblank () ()
   (vi-move-to-end-of-line)
@@ -274,8 +267,7 @@
 
 (define-operator vi-delete-next-char (beg end) ("<r>")
     (:motion vi-forward-char)
-  (vi-delete beg end :inclusive)
-  (fall-within-line (current-point)))
+  (vi-delete beg end :inclusive))
 
 (define-operator vi-delete-previous-char (beg end) ("<r>")
     (:motion vi-backward-char)
@@ -304,8 +296,7 @@
                          '(vi-forward-word-begin
                            vi-forward-word-begin-broad)
                          :test 'eq))
-        (skip-chars-forward (current-point) '(#\Space #\Tab)))
-      (fall-within-line (current-point)))))
+        (skip-chars-forward (current-point) '(#\Space #\Tab))))))
 
 (define-operator vi-delete-line (start end type) ("<R>")
     (:motion vi-move-to-end-of-line)
@@ -322,8 +313,7 @@
                                 (move-to-column s column)
                                 (line-end e)
                                 (kill-region s e)))))
-      (kill-region-without-appending start end))
-  (fall-within-line (current-point)))
+      (kill-region-without-appending start end)))
 
 (define-operator vi-change (beg end type) ("<R>")
     ()
@@ -350,8 +340,7 @@
     (move-point (current-point) start)
     (dotimes (i count)
       (move-to-end-of-logical-line)
-      (delete-next-char)))
-  (fall-within-line (current-point)))
+      (delete-next-char))))
 
 (define-operator vi-join-line (start end) ("<r>")
     (:motion vi-line)
@@ -379,10 +368,24 @@
 
 (define-operator vi-yank (start end type) ("<R>")
     (:move-point nil)
-  (if (eq type :block)
-      (visual-yank)
-      (with-killring-context (:options (when (eq type :line) :vi-line))
-        (copy-region start end))))
+  (flet ((yank-region ()
+           (with-killring-context (:options (when (eq type :line) :vi-line))
+             (copy-region start end))))
+    (case type
+      (:block
+       (visual-yank)
+       (move-point (current-point) (first (visual-range))))
+      (:line
+       (yank-region)
+       (move-to-column start (point-charpos (current-point)))
+       (move-point (current-point) start))
+      (otherwise
+       (yank-region)
+       (move-point (current-point) start)))))
+
+(define-operator vi-yank-line (start end type) ("<R>")
+    (:motion vi-move-to-end-of-line)
+  (vi-yank start end type))
 
 (defun vi-yank-from-clipboard-or-killring ()
   (multiple-value-bind (str options) (peek-killring-item (current-killring) 0)
@@ -410,9 +413,12 @@
              (line-end (current-point))
              (insert-character (current-point) #\Newline))
            (character-offset (current-point) 1))
-       (with-point ((p (current-point)))
-         (yank)
-         (move-point (current-point) p))))))
+       (yank)
+       (if (member :vi-line type)
+           (progn
+             (line-start (current-point))
+             (back-to-indentation (current-point)))
+           (character-offset (current-point) -1))))))
 
 (define-command vi-paste-before () ()
   (multiple-value-bind (string type)
@@ -438,24 +444,21 @@
          (move-point (current-point) p))))))
 
 (defun read-key-to-replace ()
-  (unwind-protect (progn
-                    (change-state 'replace-state)
-                    (let ((command (read-command)))
-                      (unless command
-                        (escape))
-                      (call-command command (universal-argument-of-this-command))))
-    (change-state 'normal)))
+  (with-temporary-state 'replace-state
+    (let ((command (read-command)))
+      (unless command
+        (escape))
+      (call-command command (universal-argument-of-this-command)))))
 
 (define-operator vi-replace-char (start end type char) ("<R>" (read-key-to-replace))
     (:motion vi-forward-char
-     :restore-point t)
+     :move-point nil)
   (if (eq type :block)
       (progn
         (apply-visual-range
          (lambda (start end)
            (vi-replace-char start end :inclusive char)))
-        (move-point (current-point) start)
-        (character-offset (current-point) *cursor-offset*))
+        (move-point (current-point) start))
       (let ((string-to-replace
               ;; Replace all chars in the region except newlines
               (with-output-to-string (s)
@@ -489,12 +492,10 @@
       (downcase-region start end)))
 
 (define-command vi-undo (&optional (n 1)) ("p")
-  (undo n)
-  (fall-within-line (current-point)))
+  (undo n))
 
 (define-command vi-redo (&optional (n 1)) ("p")
-  (redo n)
-  (fall-within-line (current-point)))
+  (redo n))
 
 (defun vi-forward-matching-paren (window point &optional (offset -1))
   (declare (ignore window))
@@ -582,21 +583,25 @@
     (lem/isearch:isearch-finish)
     (lem/isearch:isearch-next)))
 
-(define-motion vi-goto-first-line () ()
+(define-motion vi-goto-first-line (&optional (n 1)) ("p")
     (:type :line
      :jump t)
-  (move-to-beginning-of-buffer)
-  (skip-whitespace-forward (current-point) t))
+  (let ((col (point-charpos (current-point))))
+    (goto-line n)
+    (move-to-column (current-point) col)))
 
 (define-motion vi-goto-line (&optional n) ("P")
     (:type :line
      :jump t)
-  (if (null n)
-      (progn
-        (move-to-end-of-buffer)
-        (line-start (current-point)))
-      (goto-line n))
-  (skip-whitespace-forward (current-point) t))
+  (let ((col (point-charpos (current-point))))
+    (cond
+      ((null n)
+       (move-to-end-of-buffer)
+       (when (and (bolp (current-point))
+                  (eolp (current-point)))
+         (line-offset (current-point) -1)))
+      (t (goto-line n)))
+    (move-to-column (current-point) col)))
 
 (define-command vi-return (&optional (n 1)) ("p")
   (vi-next-line n)
@@ -742,8 +747,7 @@
             (lem/universal-argument::*argument* (lem/universal-argument::make-arg-state)))
         (execute-key-sequence keyseq)
         (unless (state= prev-state (current-state))
-          (change-state prev-state))
-        (fall-within-line (current-point))))))
+          (change-state prev-state))))))
 
 (define-text-object-command vi-a-word (count) ("p")
     (:expand-selection t)

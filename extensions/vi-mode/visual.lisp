@@ -12,6 +12,8 @@
                 :state-modeline-orange)
   (:import-from :lem-base
                 :alive-point-p)
+  (:import-from :alexandria
+                :last-elt)
   (:export :*visual-keymap*
            :vi-visual-end
            :vi-visual-char
@@ -86,28 +88,26 @@
           *visual-overlays*)))
 
 (defmethod state-setup ((state visual-line))
-  (with-point ((start *start-point*)
-               (end (current-point)))
-    (when (point< end start) (rotatef start end))
-    (line-start start)
-    (line-end end)
-    (push (make-overlay start end 'region)
-          *visual-overlays*)))
+  (apply-region-lines *start-point* (current-point)
+                      (lambda (p)
+                        (push (make-overlay-line p 'region)
+                              *visual-overlays*))))
 
 (defmethod state-setup ((state visual-block))
   (with-point ((start *start-point*)
                (end (current-point)))
     (let ((start-column (point-column start))
           (end-column (point-column end)))
-      (if (< end-column start-column)
-          ;; left-top or left-bottom
-          (progn
-            (character-offset start 1)
-            (incf start-column))
-          ;; right-top or right-bottom
-          (progn
-            (character-offset end 1)
-            (incf end-column)))
+      (cond
+        ;; left-top or left-bottom
+        ((< end-column start-column)
+         (character-offset start 1)
+         (incf start-column))
+        ;; right-top or right-bottom
+        (t
+         (unless (= end-column (length (line-string end)))
+           (character-offset end 1))
+         (incf end-column)))
       (apply-region-lines start end
                           (lambda (p)
                             (with-point ((s p) (e p))
@@ -156,21 +156,35 @@
   (typep (current-state) 'visual-block))
 
 (defun visual-range ()
-  (if (or (visual-char-p)
-          (visual-block-p))
-      (with-point ((start *start-point*)
-                   (end (current-point)))
-        (cond
-          ((point< start end)
-           (character-offset end 1))
-          ((point< end start)
-           (character-offset start 1)))
-        (list start end))
-      (let ((ov (sort (copy-list *visual-overlays*) #'point< :key #'overlay-start)))
-        (assert (null (rest ov)))
-        (list
-         (overlay-start (first ov))
-         (overlay-end (first ov))))))
+  (cond
+    ((visual-char-p)
+     (with-point ((start *start-point*)
+                  (end (current-point)))
+       (cond ((point<= start end)
+              (character-offset end 1))
+             ((point< end start)
+              (character-offset start 1)))
+       (list start end)))
+    ((visual-block-p)
+     ;; Return left-top point and right-bottom point
+     (with-point ((start *start-point*)
+                  (end (current-point)))
+       (map nil #'move-to-line
+            (list start end)
+            (sort (mapcar #'line-number-at-point (list start end)) #'<))
+       (map nil #'move-to-column
+            (list start end)
+            (sort (mapcar #'point-charpos (list *start-point* (current-point))) #'<))
+       (character-offset end 1)
+       (list start end)))
+    (t
+     (with-point ((start *start-point*)
+                  (end (current-point)))
+       (when (point< end start)
+         (rotatef start end))
+       (line-start start)
+       (line-end end)
+       (list start end)))))
 
 (defun (setf visual-range) (new-range)
   (check-type new-range list)
@@ -192,10 +206,12 @@
          (move-point (current-point) end))))))
 
 (defun apply-visual-range (function)
-  (dolist (ov (sort (copy-list *visual-overlays*) #'point< :key #'overlay-start))
-    (funcall function
-             (overlay-start ov)
-             (overlay-end ov))))
+  (if (visual-line-p)
+      (apply function (visual-range))
+      (dolist (ov (sort (copy-list *visual-overlays*) #'point< :key #'overlay-start))
+        (funcall function
+                 (overlay-start ov)
+                 (overlay-end ov)))))
 
 (defun visual-yank ()
   (with-killring-context (:options (when (visual-line-p) :vi-line))
