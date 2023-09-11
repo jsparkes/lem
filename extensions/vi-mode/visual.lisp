@@ -25,8 +25,6 @@
            :visual-block-p
            :visual-range
            :apply-visual-range
-           :visual-yank
-           :visual-kill
            :vi-visual-insert
            :vi-visual-append
            :vi-visual-swap-points
@@ -183,7 +181,8 @@
        (when (point< end start)
          (rotatef start end))
        (line-start start)
-       (line-end end)
+       (or (line-offset end 1 0)
+           (line-end end))
        (list start end)))))
 
 (defun (setf visual-range) (new-range)
@@ -212,18 +211,6 @@
         (funcall function
                  (overlay-start ov)
                  (overlay-end ov)))))
-
-(defun visual-yank ()
-  (with-killring-context (:options (when (visual-line-p) :vi-line))
-    (apply-visual-range
-     (lambda (start end)
-       (copy-region start end)))))
-
-(defun visual-kill ()
-  (with-killring-context (:options (when (visual-line-p) :vi-line))
-    (apply-visual-range
-     (lambda (start end)
-       (kill-region start end)))))
 
 (defun string-without-escape ()
   (concatenate 'string

@@ -5,6 +5,8 @@
         :lem-vi-mode/ex)
   (:import-from :lem-vi-mode/options
                 :option-value)
+  (:import-from :lem-vi-mode/leader
+                :leader-key)
   (:import-from :lem-vi-mode/commands
                 :vi-open-below
                 :vi-open-above)
@@ -24,6 +26,10 @@
                 :*operator-keymap*)
   (:import-from :lem-vi-mode/visual
                 :*visual-keymap*)
+  (:import-from :lem-vi-mode/window
+                :adjust-window-scroll)
+  (:import-from :lem/kbdmacro
+                :*macro-running-p*)
   (:import-from :alexandria
                 :appendf)
   (:export :vi-mode
@@ -42,23 +48,9 @@
            :normal
            :insert
            :change-state
-           :option-value))
+           :option-value
+           :leader-key))
 (in-package :lem-vi-mode)
-
-(define-command adjust-window-scroll () ()
-  (let* ((window (lem:current-window))
-         (window-height (lem-core::window-height-without-modeline window))
-         (cursor-y (lem:window-cursor-y window))
-         (window-scroll-offset (option-value "scrolloff"))
-         (scroll-offset (min (floor (/ window-height 2)) window-scroll-offset)))
-    (cond
-      ((< cursor-y scroll-offset)
-       (lem:window-scroll window (- cursor-y scroll-offset)))
-      ((and (< (- window-height scroll-offset) cursor-y)
-            (< (- window-height cursor-y)
-               (- (lem:buffer-nlines (lem:current-buffer))
-                  (lem:line-number-at-point (lem:current-point)))))
-       (lem:window-scroll window (- cursor-y (- window-height scroll-offset)))))))
 
 (defmethod post-command-hook ((state normal))
   (when *enable-repeat-recording*
@@ -81,8 +73,10 @@
 (defmethod state-enabled-hook ((state insert))
   (when *enable-repeat-recording*
     (setf *last-repeat-keys* nil))
-  (buffer-undo-boundary)
-  (buffer-disable-undo-boundary (lem:current-buffer)))
+  (unless *macro-running-p*
+    (buffer-undo-boundary)
+    (buffer-disable-undo-boundary (lem:current-buffer))))
 
 (defmethod state-disabled-hook ((state insert))
-  (buffer-enable-undo-boundary (lem:current-buffer)))
+  (unless *macro-running-p*
+    (buffer-enable-undo-boundary (lem:current-buffer))))

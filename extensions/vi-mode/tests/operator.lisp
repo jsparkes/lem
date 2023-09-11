@@ -91,6 +91,20 @@
         (cmd "di\"")
         (ok (buf= " \"[\"]  "))))))
 
+(deftest vi-change
+  (with-fake-interface ()
+    (testing "change linewise"
+      (with-vi-buffer (#?"a[b]c\ndef\n")
+        (cmd "cc")
+        (ok (buf= #?"[]\ndef\n")))
+      (with-vi-buffer (#?"abc\nd[e]f")
+        (cmd "cc")
+        (ok (buf= #?"abc\n[]"))))
+    (testing "change charwise"
+      (with-vi-buffer (#?"a[b]c\ndef\n")
+        (cmd "cl")
+        (ok (buf= #?"a[]c\ndef\n"))))))
+
 (deftest vi-change-whole-line
   (with-fake-interface ()
     (with-vi-buffer (#?"a[b]c\ndef\n")
@@ -123,12 +137,12 @@
         (cmd "yj")
         (ok (buf= #?"ab[c]d\nefgh\n"))
         (ok (equalp (multiple-value-list (last-kill))
-                    (list #?"abcd\nefgh" '(:vi-line)))))
+                    (list #?"abcd\nefgh\n" '(:vi-line)))))
       (with-vi-buffer (#?"ijkl\n[m]nop\n")
         (cmd "yk")
         (ok (buf= #?"[i]jkl\nmnop\n"))
         (ok (equalp (multiple-value-list (last-kill))
-                    (list #?"ijkl\nmnop" '(:vi-line)))))
+                    (list #?"ijkl\nmnop\n" '(:vi-line)))))
       (with-vi-buffer (#?"ab[c]d\nefgh\n")
         (cmd "<C-v>hjy")
         (ok (buf= #?"a[b]cd\nefgh\n")))
@@ -149,6 +163,11 @@
       (ok (buf= #?"a[b]cd\nefgh\n"))
       (cmd "jlp")
       (ok (buf= #?"abcd\nefgbc[d]h\n")))))
+
+(deftest vi-delete-next-char
+  (with-fake-interface ()
+    (with-vi-buffer ("")
+      (ok (not (signals (cmd "x")))))))
 
 (deftest vi-replace-char
   (with-fake-interface ()

@@ -7,6 +7,7 @@
         :lem-vi-mode/word
         :lem-vi-mode/visual
         :lem-vi-mode/jump-motions
+        :lem-vi-mode/registers
         :lem-vi-mode/text-objects
         :lem-vi-mode/commands/utils)
   (:import-from :lem-vi-mode/states
@@ -18,8 +19,19 @@
                 :visual-region)
   (:import-from :lem/common/killring
                 :peek-killring-item)
+  (:import-from :lem-vi-mode/window
+                :move-to-window-top
+                :move-to-window-middle
+                :move-to-window-bottom)
   (:import-from :lem-vi-mode/utils
                 :kill-region-without-appending)
+  (:import-from :lem/isearch
+                :*isearch-finish-hooks*)
+  (:import-from :lem/kbdmacro
+                :*macro-running-p*)
+  (:import-from :alexandria
+                :when-let
+                :last-elt)
   (:export :vi-move-to-beginning-of-line/universal-argument-0
            :vi-forward-char
            :vi-backward-char
@@ -61,6 +73,9 @@
            :vi-downcase
            :vi-undo
            :vi-redo
+           :vi-record-macro
+           :vi-execute-macro
+           :vi-execute-last-recorded-macro
            :vi-move-to-matching-paren
            :vi-search-forward
            :vi-search-backward
@@ -237,19 +252,17 @@
 (define-motion vi-move-to-window-top () ()
     (:type :line
      :jump t)
-  (move-point (current-point) (window-view-point (current-window))))
+  (move-to-window-top))
 
 (define-motion vi-move-to-window-middle () ()
     (:type :line
      :jump t)
-  (vi-move-to-window-top)
-  (next-line (floor (/ (- (window-height (current-window)) 2) 2))))
+  (move-to-window-middle))
 
 (define-motion vi-move-to-window-bottom () ()
     (:type :line
      :jump t)
-  (vi-move-to-window-top)
-  (next-line (- (window-height (current-window)) 2)))
+  (move-to-window-bottom))
 
 (define-command vi-back-to-indentation () ()
   (vi-move-to-beginning-of-line)
@@ -275,21 +288,24 @@
 
 (define-operator vi-delete (start end type) ("<R>")
     (:move-point nil)
-  (let ((pos (point-charpos (current-point))))
+  (when (point= start end)
+    (return-from vi-delete))
+  (let ((pos (point-charpos (current-point)))
+        (ends-with-newline (char= (character-at end -1) #\Newline)))
     (if (visual-p)
-        (visual-kill)
-        (with-killring-context (:options (when (eq type :line) :vi-line))
-          (kill-region-without-appending start end)))
+        (apply-visual-range
+         (lambda (start end)
+           (delete-region start end :type type)))
+        (delete-region start end :type type))
     (when (and (eq type :line)
-               (eq 'vi-delete (command-name (this-command))))
-      (if (last-line-p (current-point))
-          (unless (first-line-p (current-point))
-            (delete-previous-char))
-          (delete-next-char))
-      (setf (point-charpos (current-point))
-            (max 0
-                 (min (1- (length (line-string (current-point)))) pos))))
+               (not ends-with-newline)
+               (not (= (position-at-point start) 1)))
+      (delete-previous-char))
     (when (eq 'vi-delete (command-name (this-command)))
+      (when (eq type :line)
+        (move-to-column (current-point)
+                        (max 0
+                             (min (1- (length (line-string (current-point)))) pos))))
       ;; After 'dw' or 'dW', move to the first non-blank char
       (when (and (this-motion-command)
                  (member (command-name (this-motion-command))
@@ -317,14 +333,23 @@
 
 (define-operator vi-change (beg end type) ("<R>")
     ()
-  (vi-delete beg end type)
-  (indent-line (current-point))
+  (let ((end-with-newline (char= (character-at end -1) #\Newline)))
+    (vi-delete beg end type)
+    (when (eq type :line)
+      (cond
+        (end-with-newline
+         (insert-character (current-point) #\Newline)
+         (character-offset (current-point) -1))
+        (t
+         (insert-character (current-point) #\Newline)))
+      (indent-line (current-point))))
   (change-state 'insert))
 
 (define-operator vi-change-whole-line (beg end) ("<r>")
     (:motion vi-line)
   (line-start beg)
-  (line-end end)
+  (or (line-offset end 1 0)
+      (line-end end))
   (vi-change beg end :line))
 
 (define-operator vi-change-line (beg end type) ("<R>")
@@ -368,20 +393,19 @@
 
 (define-operator vi-yank (start end type) ("<R>")
     (:move-point nil)
-  (flet ((yank-region ()
-           (with-killring-context (:options (when (eq type :line) :vi-line))
-             (copy-region start end))))
-    (case type
-      (:block
-       (visual-yank)
-       (move-point (current-point) (first (visual-range))))
-      (:line
-       (yank-region)
-       (move-to-column start (point-charpos (current-point)))
-       (move-point (current-point) start))
-      (otherwise
-       (yank-region)
-       (move-point (current-point) start)))))
+  (case type
+    (:block
+     (apply-visual-range
+      (lambda (start end)
+        (yank-region start end :type type)))
+     (move-point (current-point) (first (visual-range))))
+    (:line
+     (yank-region start end :type type)
+     (move-to-column start (point-charpos (current-point)))
+     (move-point (current-point) start))
+    (otherwise
+     (yank-region start end :type type)
+     (move-point (current-point) start))))
 
 (define-operator vi-yank-line (start end type) ("<R>")
     (:motion vi-move-to-end-of-line)
@@ -410,15 +434,17 @@
       (t
        (if (member :vi-line type)
            (progn
-             (line-end (current-point))
-             (insert-character (current-point) #\Newline))
+             (or (line-offset (current-point) 1 0)
+                 (progn
+                   (line-end (current-point))
+                   (insert-character (current-point) #\Newline))))
            (character-offset (current-point) 1))
        (yank)
-       (if (member :vi-line type)
-           (progn
-             (line-start (current-point))
-             (back-to-indentation (current-point)))
-           (character-offset (current-point) -1))))))
+       (cond
+         ((member :vi-line type)
+          (move-point (current-point) (cursor-yank-start (current-point)))
+          (back-to-indentation (current-point)))
+         (t (character-offset (current-point) -1)))))))
 
 (define-command vi-paste-before () ()
   (multiple-value-bind (string type)
@@ -433,15 +459,15 @@
        (insert-string (current-point) string)
        (character-offset (current-point) -1))
       (t
-       (with-point ((p (current-point)))
-         (cond
-           ((member :vi-line type)
-            (line-start (current-point))
-            (yank)
-            (insert-character (current-point) #\Newline))
-           (t
-            (yank)))
-         (move-point (current-point) p))))))
+       (cond
+         ((member :vi-line type)
+          (line-start (current-point))
+          (yank)
+          (move-point (current-point) (cursor-yank-start (current-point)))
+          (back-to-indentation (current-point)))
+         (t
+          (yank)
+          (character-offset (current-point) -1)))))))
 
 (defun read-key-to-replace ()
   (with-temporary-state 'replace-state
@@ -497,6 +523,68 @@
 (define-command vi-redo (&optional (n 1)) ("p")
   (redo n))
 
+(defvar *kbdmacro-recording-register* nil)
+(defvar *last-recorded-macro* nil)
+
+(defun read-register ()
+  (let ((key (read-key)))
+    (cond
+      ((eq key (make-key :ctrl t :sym "g"))
+       (keyboard-quit))
+      ((eq key (make-key :sym "Escape"))
+       (escape))
+      (t
+       (lem-core:key-to-char key)))))
+
+(define-command vi-record-macro (register) ((or *kbdmacro-recording-register*
+                                                (read-register)))
+  (cond
+    ((macro-register-p register)
+     (cond
+       ;; When recording
+       (*kbdmacro-recording-register*
+        ;; Finish recording
+        (lem/kbdmacro:kbdmacro-end)
+        (setf (register register)
+              ;; Omit the last 'q'
+              (let* ((last-key
+                       (last-elt lem/kbdmacro::*last-macro-chars*))
+                     (last-cmd
+                       (find-keybind last-key)))
+                (if (eq last-cmd 'vi-record-macro)
+                    (butlast lem/kbdmacro::*last-macro-chars*)
+                    lem/kbdmacro::*last-macro-chars*)))
+        (setf *kbdmacro-recording-register* nil
+              *last-recorded-macro* (downcase-char register)))
+       (t
+        ;; Start recording
+        (setf *kbdmacro-recording-register* register)
+        (lem/kbdmacro:kbdmacro-start))))
+    (t
+     (editor-error "Invalid register: ~A" register))))
+
+(define-command vi-execute-macro (n macro) ("p" (read-register))
+  (cond
+    ((macro-register-p macro)
+     (let ((keyseq (register macro)))
+       (cond
+         ((listp keyseq)
+          (let ((*macro-running-p* t))
+            (buffer-disable-undo-boundary (lem:current-buffer))
+            (unwind-protect
+                 (dotimes (i n)
+                   (execute-key-sequence keyseq))
+              (buffer-enable-undo-boundary (lem:current-buffer)))))
+         (t
+          (editor-error "No macro is recorded at the register '~A'" macro)))))
+    (t
+     (editor-error "Invalid register: ~A" macro))))
+
+(define-command vi-execute-last-recorded-macro (&optional (n 1)) ("p")
+  (unless *last-recorded-macro*
+    (editor-error "No keyboard macro is recorded yet"))
+  (vi-execute-macro n *last-recorded-macro*))
+
 (defun vi-forward-matching-paren (window point &optional (offset -1))
   (declare (ignore window))
   (with-point ((point point))
@@ -532,8 +620,13 @@
 
 (defvar *last-search-direction* nil)
 
+(defun vi-isearch-finish-hook (string)
+  (setf (register #\/) string)
+  (remove-hook *isearch-finish-hooks* 'vi-isearch-finish-hook))
+
 (define-command vi-search-forward () ()
   (setf *last-search-direction* :forward)
+  (add-hook *isearch-finish-hooks* 'vi-isearch-finish-hook)
   (with-jump-motion
     (lem/isearch::isearch-start "/"
                                 (lambda (point string)
@@ -548,24 +641,29 @@
 
 (define-command vi-search-backward () ()
   (setf *last-search-direction* :backward)
+  (add-hook *isearch-finish-hooks* 'vi-isearch-finish-hook)
   (with-jump-motion
     (lem/isearch:isearch-backward-regexp "?")))
 
 (defun vi-search-repeat-forward (n)
-  (with-jump-motion
-    (with-point ((p (current-point)))
-      (vi-forward-char (length lem/isearch::*isearch-string*))
-      (loop repeat n
-            for found = (lem/isearch:isearch-next)
-            unless found
-               do (move-point (current-point) p)
-                  (return)
-            finally
-               (vi-backward-char (length lem/isearch::*isearch-string*))))))
+  (when-let ((query (register #\/)))
+    (lem/isearch::change-previous-string query)
+    (with-jump-motion
+      (with-point ((p (current-point)))
+        (vi-forward-char (length lem/isearch::*isearch-string*))
+        (loop repeat n
+              for found = (lem/isearch:isearch-next)
+              unless found
+              do (move-point (current-point) p)
+                 (return)
+              finally
+                 (vi-backward-char (length lem/isearch::*isearch-string*)))))))
 
 (defun vi-search-repeat-backward (n)
-  (with-jump-motion
-    (dotimes (i n) (lem/isearch:isearch-prev))))
+  (when-let ((query (register #\/)))
+    (lem/isearch::change-previous-string query)
+    (with-jump-motion
+      (dotimes (i n) (lem/isearch:isearch-prev)))))
 
 (define-command vi-search-next (n) ("p")
   (case *last-search-direction*

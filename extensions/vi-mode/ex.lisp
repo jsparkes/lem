@@ -6,6 +6,8 @@
   (:import-from :lem-vi-mode/visual
                 :visual-p
                 :vi-visual-end)
+  (:import-from :lem-vi-mode/registers
+                :*last-ex-command*)
   (:import-from :lem-vi-mode/utils
                 :expand-filename-modifiers)
   (:export :vi-ex
@@ -26,7 +28,8 @@
       (with-main-window (lem:current-window)
         (execute-ex
          (prompt-for-string
-          (if in-visual ":'<,'>" ":")
+          ":"
+          :initial-value (if in-visual "'<,'>" "")
           :completion-function
           (lambda (str)
             (cond
@@ -75,9 +78,10 @@
                          (lem/completion-mode::completion-buffer
                           comp-str))))))
           :history-symbol 'vi-ex
-          :special-keymap *ex-keymap*))))))
+          :special-keymap *ex-keymap*))))
+    (vi-visual-end)))
 
 (defun execute-ex (string)
   (let ((lem-vi-mode/ex-core:*point* (current-point)))
     (prog1 (eval (parse-ex string))
-      (vi-visual-end))))
+      (setf *last-ex-command* string))))
