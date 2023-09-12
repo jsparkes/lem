@@ -118,9 +118,9 @@
               (put-text-property (link-start link)
                                  (link-end link)
                                  'link link)
-              (put-text-property (link-start link)
-                                 (link-end link)
-                                 :click-callback 'click-callback))))
+              (lem-core::set-clickable (link-start link)
+                                       (link-end link)
+                                       'click-callback))))
 
 (defgeneric move-to-link (link))
 
@@ -185,3 +185,8 @@
 (define-command link-open (&optional (point (current-point))) ()
   (when-let (link (link-at point))
     (open-link link)))
+
+(defun after-init-hook ()
+  (link-mode t))
+
+(add-hook *after-init-hook* 'after-init-hook)
