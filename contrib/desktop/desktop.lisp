@@ -1,17 +1,9 @@
-(defpackage :desktop
-  (:use :cl)
+(defpackage :lem-desktop
+  (:use :cl :lem)
   (:export :desktop-restore
            :desktop-save))
 
-(in-package :desktop)
-
-(defmacro with-current-buffer (buffer &body body)
-  "Execute BODY in BUFFER; restore buffer afterwards."
-  `(let ((old-buffer (current-buffer)))
-     (%switch-to-buffer ,buffer nil t)
-     (unwind-protect
-          (progn ,@body)
-       (%switch-to-buffer old-buffer nil t))))
+(in-package :lem-desktop)
 
 (defun buffer-info (buffer)
   (let* ((filename (lem:buffer-filename buffer))
