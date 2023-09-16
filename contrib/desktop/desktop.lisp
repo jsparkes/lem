@@ -1,5 +1,5 @@
 (defpackage :lem-desktop
-  (:use :cl :lem)
+  (:use :cl :lem :lem-base)
   (:export :desktop-restore
            :desktop-save))
 
@@ -30,9 +30,8 @@
        (line (getf plist :line)))
     (multiple-value-bind (buffer) (lem:find-file-buffer filename)
       (when (uiop/filesystem:file-exists-p filename)
-        ;; (lem:switch-to-buffer buffer)
-        (with-current-buffer buffer
-            (lem:move-to-line (lem:current-point) line)
+        (lem:with-current-buffer buffer
+          (lem:move-to-line (lem:current-point) line)
           (lem:move-to-column (lem:current-point) column)
           buffer)))))
 
