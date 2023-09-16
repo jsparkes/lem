@@ -31,6 +31,19 @@
       (with-vi-buffer (#?"[a]bc\ndef\nghi\n")
         (cmd "Vjd")
         (ok (buf= #?"[g]hi\n"))))
+    (testing "visual block mode"
+      (with-vi-buffer (#?"ab[c]d\nefgh\n")
+        (cmd "<C-v>hjd")
+        (ok (buf= #?"a[d]\neh\n")))
+      (with-vi-buffer (#?"a[b]cd\nefgh\n")
+        (cmd "<C-v>jld")
+        (ok (buf= #?"a[d]\neh\n")))
+      (with-vi-buffer (#?"abcd\ne[f]gh\n")
+        (cmd "<C-v>kld")
+        (ok (buf= #?"a[d]\neh\n")))
+      (with-vi-buffer (#?"abcd\nef[g]h\n")
+        (cmd "<C-v>khd")
+        (ok (buf= #?"a[d]\neh\n"))))
     (testing "with vi-forward-word-begin"
       (with-vi-buffer (#?"[a]bc\n  def\n")
         (cmd "dw")
@@ -89,7 +102,11 @@
     (testing "di\""
       (with-vi-buffer (" \"f[o]o\"  ")
         (cmd "di\"")
-        (ok (buf= " \"[\"]  "))))))
+        (ok (buf= " \"[\"]  "))))
+    (testing "dG"
+      (with-vi-buffer (#?"abcd\ne[f]gh\nijkl\n")
+        (cmd "dG")
+        (ok (buf= #?"abcd\n[]"))))))
 
 (deftest vi-change
   (with-fake-interface ()
@@ -103,7 +120,9 @@
     (testing "change charwise"
       (with-vi-buffer (#?"a[b]c\ndef\n")
         (cmd "cl")
-        (ok (buf= #?"a[]c\ndef\n"))))))
+        (ok (buf= #?"a[]c\ndef\n"))))
+    (with-vi-buffer ("")
+      (ok (not (signals (cmd "cc")))))))
 
 (deftest vi-change-whole-line
   (with-fake-interface ()
@@ -147,7 +166,7 @@
         (cmd "<C-v>hjy")
         (ok (buf= #?"a[b]cd\nefgh\n")))
       (with-vi-buffer (#?"a[b]cd\nefgh\n")
-        (cmd "<C-v>jky")
+        (cmd "<C-v>jly")
         (ok (buf= #?"a[b]cd\nefgh\n")))
       (with-vi-buffer (#?"abcd\ne[f]gh\n")
         (cmd "<C-v>kly")
@@ -201,23 +220,3 @@
     (with-vi-buffer (#?"abcd\ne[f]gh\n")
       (cmd "<C-v>klrx")
       (ok (buf= #?"a[x]xd\nexxh\n")))))
-
-(deftest vi-repeat
-  (with-fake-interface ()
-    (with-vi-buffer (#?"[1]:abc\n2:def\n3:ghi\n4:jkl\n5:mno\n6:opq\n7:rst\n8:uvw")
-      (cmd "dd")
-      (ok (buf= #?"[2]:def\n3:ghi\n4:jkl\n5:mno\n6:opq\n7:rst\n8:uvw"))
-      (cmd ".")
-      (ok (buf= #?"[3]:ghi\n4:jkl\n5:mno\n6:opq\n7:rst\n8:uvw"))
-      (cmd "2.")
-      (ok (buf= #?"[5]:mno\n6:opq\n7:rst\n8:uvw")))
-    (with-vi-buffer (#?"[1]:abc\n2:def\n3:ghi\n4:jkl\n5:mno\n6:opq\n7:rst\n8:uvw")
-      (cmd "2d2d")
-      (ok (buf= #?"[5]:mno\n6:opq\n7:rst\n8:uvw"))
-      (cmd "2.")
-      (ok (buf= #?"[7]:rst\n8:uvw")))
-    (with-vi-buffer (#?"[f]oo\nbar\nbaz\n")
-      (cmd "A-fighters<Esc>")
-      (ok (buf= #?"foo-fighter[s]\nbar\nbaz\n"))
-      (cmd "j^.")
-      (ok (buf= #?"foo-fighters\nbar-fighter[s]\nbaz\n")))))

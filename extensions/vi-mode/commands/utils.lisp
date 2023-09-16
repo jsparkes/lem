@@ -147,7 +147,11 @@
           (let ((command (get-command motion)))
             (call-motion command (universal-argument-of-this-command)))
           (with-temporary-state 'operator
-            (let* ((uarg (* (or (universal-argument-of-this-command) 1) (or (read-universal-argument) 1)))
+            (let* ((read-uarg (read-universal-argument))
+                   (uarg (if (or (universal-argument-of-this-command) read-uarg)
+                             (* (or (universal-argument-of-this-command) 1)
+                                (or read-uarg 1))
+                             nil))
                    (command-name (read-command))
                    (command (get-command command-name)))
               (typecase command
@@ -180,8 +184,7 @@
           (if (visual-p)
               (visual-region)
               (motion-region motion))
-        (when (and (not (eq type :block))
-                   (point< end start))
+        (when (point< end start)
           (rotatef start end))
         (ecase type
           (:line (unless (visual-p)
@@ -203,8 +206,8 @@
             (with-point ((p (current-point)))
               (move-to-line p (min (line-number-at-point start)
                                    (line-number-at-point end)))
-              (move-to-column p (min (point-charpos start)
-                                     (point-charpos end)))
+              (move-to-column p (min (point-column start)
+                                     (point-column end)))
               (move-point (current-point) p))
             (move-point (current-point) start))))))
 
