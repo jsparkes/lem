@@ -1,5 +1,5 @@
 (defpackage :lem-desktop
-  (:use :cl :lem :lem-base)
+  (:use :cl :lem :alexandria)
   (:export :desktop-restore
            :desktop-save))
 
@@ -30,7 +30,7 @@
        (line (getf plist :line)))
     (multiple-value-bind (buffer) (lem:find-file-buffer filename)
       (when (uiop/filesystem:file-exists-p filename)
-        (lem:with-current-buffer buffer
+        (lem:with-current-buffers (list buffer)
           (lem:move-to-line (lem:current-point) line)
           (lem:move-to-column (lem:current-point) column)
           buffer)))))
@@ -41,4 +41,3 @@
 
 (lem:define-command desktop-restore () ()
   (restore-buffers))
-                            
