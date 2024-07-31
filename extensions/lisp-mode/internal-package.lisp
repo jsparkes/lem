@@ -10,7 +10,7 @@
         :lem-lisp-mode/connections
         :lem-lisp-mode/message-dispatcher
         :lem-lisp-mode/ui-mode
-        :lem-lisp-mode/grammer)
+        :lem-lisp-mode/grammar)
   (:export
    ;; reexport swank-protocol.lisp
    :connection-value)
@@ -100,6 +100,8 @@
    :lisp-apropos-package
    ;; message.lisp
    :display-message
+   ;; package.lisp
+   :lisp-listen-in-current-package 
    ;;
    :self-connection
    :self-connection-p

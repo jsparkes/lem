@@ -9,7 +9,12 @@
            :project-find-file
            :project-root-directory
            :project-root
-           :project-kill-buffers)
+           :project-kill-buffers
+           :project-switch
+           :project-save
+           :project-unsave)
+  #+sbcl
+  (:lock t)
   (:documentation "Defines utilities to find a project root directory and related user-facing commands: project-find-file, project-kill-buffers, project-switch etc."))
 
 (in-package :lem-core/commands/project)
@@ -129,7 +134,7 @@
         (find-root (parent-directory pathname) :recurse recurse :recursing t)
         pathname)))))
 
-(define-command project-find-file (arg) ("p")
+(define-command project-find-file (arg) (:universal)
   "Open a file, from the list of all files in this project."
   ;; ARG is currently not used, use it when needed.
   (declare (ignorable arg))
@@ -153,7 +158,7 @@
          (root (or project-root cwd)))
     (message "Current project root: ~a" root)))
 
-(define-command project-root-directory (arg) ("p")
+(define-command project-root-directory (arg) (:universal)
   "Open this project's root directory."
   (declare (ignorable arg))
   (let* ((cwd (buffer-directory))

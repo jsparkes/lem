@@ -3,6 +3,8 @@
         :alexandria
         :lem
         :lem-lisp-mode/internal)
+  (:export :lisp-macrostep-expand
+           :lisp-macroexpand-all)
   #+sbcl
   (:lock t))
 (in-package :lem-lisp-mode/macroexpand)
@@ -253,6 +255,16 @@ Do you want to disable this message in the future?"
                              (declare (ignore s)))
                            (when self
                              (move-point (buffer-point buffer) p))))))))
+
+(define-command lisp-macroexpand-in-place () ()
+  (check-connection)
+  (lisp-eval-async
+   `(micros:swank-macroexpand-1
+     (lem-lisp-mode/internal::form-string-at-point))
+   (lambda (string)
+     (kill-sexp)
+     (insert-string (current-point) string)
+     (indent-buffer (current-buffer)))))
 
 (define-command lisp-macroexpand () ()
   (check-connection)

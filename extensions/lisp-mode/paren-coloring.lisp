@@ -6,6 +6,12 @@
   (:export :paren-coloring
            :*paren-attribute*
            :*rainbow*
+           :paren-color-1
+           :paren-color-2
+           :paren-color-3
+           :paren-color-4
+           :paren-color-5
+           :paren-color-6
            :toggle-paren-coloring))
 (in-package :lem-lisp-mode/paren-coloring)
 
@@ -15,27 +21,25 @@
         (enable)
         (disable))))
 
-(define-attribute color-1
-   (t :foreground "red"))
+(define-attribute paren-color-1
+  (t :foreground "red"))
 
-(define-attribute color-2
-  (:dark :foreground "royalblue")
-  (:light :foreground "blue"))
+(define-attribute paren-color-2
+  (t :foreground "blue"))
 
-(define-attribute color-3
-  (:dark :foreground "green")
-  (:light :foreground "dark green"))
+(define-attribute paren-color-3
+  (t :foreground "green"))
 
-(define-attribute color-4
+(define-attribute paren-color-4
   (t :foreground "sienna4"))
 
-(define-attribute color-5
+(define-attribute paren-color-5
   (t :foreground "dark cyan"))
 
-(define-attribute color-6
+(define-attribute paren-color-6
   (t :foreground "orange"))
 
-(defvar *rainbow-colors* #(color-1 color-2 color-3 color-4 color-5 color-6))
+(defparameter *rainbow-colors* #(paren-color-1 paren-color-2 paren-color-3 paren-color-4 paren-color-5 paren-color-6))
 
 (defvar *paren-attribute* (make-attribute :foreground "dim gray"))
 

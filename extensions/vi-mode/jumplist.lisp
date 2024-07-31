@@ -1,7 +1,7 @@
 (defpackage :lem-vi-mode/jumplist
   (:use :cl
         :lem)
-  (:import-from :lem-base
+  (:import-from :lem
                 :alive-point-p)
   (:import-from :alexandria
                 :when-let
@@ -139,8 +139,8 @@
       (let ((jumplist (make-jumplist)))
         (setf (window-parameter window :vi-mode-jumplist)
               jumplist)
-        (push (lambda () (delete-jumplist jumplist))
-              (window-delete-hook window))
+        (add-hook (window-delete-hook window)
+                  (lambda () (delete-jumplist jumplist)))
         jumplist)))
 
 (defun (setf window-jumplist) (jumplist window)

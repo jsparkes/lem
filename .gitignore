@@ -1,6 +1,5 @@
 DEBUG
 *.fasl
-*.so
 node_modules
 package-lock.json
 roswell/lem-ncurses
@@ -28,9 +27,11 @@ GIT_IGNORE.*
 
 lem
 lem-ncurses
-
+lem-rpc
 
 *.abcl
 build/*
 
 *.lx64fsl
+.qlot
+/systems/

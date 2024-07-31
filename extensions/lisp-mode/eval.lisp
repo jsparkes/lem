@@ -83,8 +83,8 @@
       (multiple-value-bind (r g b)
           (hsv-to-rgb h
                       s
-                      (+ v 5))
-        (format nil "#~X~X~X" r g b)))))
+                      (+ v (if (< v 50) 5 -5)))
+        (color-to-hex-string (make-color r g b))))))
 
 (defun display-evaluated-message
     (start
@@ -96,7 +96,7 @@
           (background-attribute
            (make-attribute :background (compute-evaluated-background-color))))
   (let ((popup-overlay
-          (make-overlay-line-endings
+          (make-line-endings-overlay
            start
            end
            (or attribute
@@ -166,8 +166,8 @@
 (define-command lisp-eval-at-point () ()
   (check-connection)
   (cond ((buffer-mark-p (current-buffer))
-         (with-point ((start (region-beginning))
-                      (end (region-end)))
+         (with-point ((start (region-beginning (current-buffer)))
+                      (end (region-end (current-buffer))))
            (eval-region start end)))
         (t
          (eval-last-expression (current-point)))))
@@ -233,7 +233,7 @@
       (eval-print string)
       (move-point (current-point) end))))
 
-(define-command lisp-eval-region (start end) ("r")
+(define-command lisp-eval-region (start end) (:region)
   "Execute the region as Lisp code."
   (check-connection)
   (eval-with-transcript

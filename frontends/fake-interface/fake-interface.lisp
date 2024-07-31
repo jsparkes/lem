@@ -83,22 +83,39 @@
   (setf (view-x view) x
         (view-y view) y))
 
-(defmethod lem-if:print ((implementation fake-interface) view x y string attribute)
-  (let ((line (aref (view-lines view) y)))
-    (loop :for i :from x
-          :for c :across string
-          :do (setf (aref line i) c))))
-
-(defmethod lem-if:print-modeline ((implementation fake-interface) view x y string attribute)
-  )
-
-(defmethod lem-if:clear-eol ((implementation fake-interface) view x y)
-  )
-
-(defmethod lem-if:clear-eob ((implementation fake-interface) view x y)
-  )
-
 (defmethod lem-if:update-display ((implementation fake-interface)))
+
+(defmethod lem-if:view-width ((implementation fake-interface) view)
+  (view-width view))
+
+(defmethod lem-if:view-height ((implementation fake-interface) view)
+  (view-height view))
+
+(defmethod lem-if:object-width ((implementation fake-interface) object)
+  1)
+
+(defmethod lem-if:object-height ((implementation fake-interface) object)
+  1)
+
+(defmethod lem-if:render-line ((implementation fake-interface) view x y objects height)
+  nil)
+
+(defmethod lem-if:clear-to-end-of-window ((implementation fake-interface) view y)
+  nil)
+
+(defmethod lem-if:get-char-width ((implementation fake-interface))
+  1)
+
+(defmethod lem-if:get-char-height ((implementation fake-interface))
+  1)
+
+(defmethod lem-if:render-line-on-modeline ((implementation fake-interface)
+                                           view
+                                           left-objects
+                                           right-objects
+                                           default-attribute
+                                           height)
+  nil)
 
 (defmacro with-fake-interface (() &body body)
   `(with-implementation (make-instance 'fake-interface)

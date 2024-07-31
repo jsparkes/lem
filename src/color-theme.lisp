@@ -58,7 +58,7 @@
 (defun apply-theme (theme)
  "Takes a color-theme hastable, inherits the theme, and maps the newly generated spec-table
  to defined attributes, such as :background, :foreground, etc.. in the text editor"
-  (setf *inactive-window-background-color* nil)
+  (setf (inactive-window-background-color) nil)
   (clear-all-attribute-cache)
   (let ((spec-table (make-hash-table)))
     (inherit-load-theme theme spec-table)
@@ -72,9 +72,11 @@
                  ((:foreground)
                   (apply #'set-foreground args))
                  ((:background)
-                  (apply #'set-background args))
+                  (destructuring-bind (color) args
+                    (when color
+                      (set-background color))))
                  ((:inactive-window-background)
-                  (setf *inactive-window-background-color* (first args)))
+                  (setf (inactive-window-background-color) (first args)))
                  (otherwise
                   (unless (typep name 'base-color)
                     (apply #'set-attribute name args)))))
@@ -91,28 +93,35 @@
       (editor-error "undefined color theme: ~A" name))
     (apply-theme theme)
     (message nil)
-    (redraw-display t)
+    (redraw-display :force t)
     (setf (current-theme) name)
     (when save-theme
       (setf (config :color-theme) (current-theme)))))
 
+(defun get-color-theme-color (color-theme key)
+  (second (assoc key (color-theme-specs color-theme))))
+
 (defun background-color ()
   (when (current-theme)
-    (second (assoc :background (color-theme-specs (find-color-theme (current-theme)))))))
+    (get-color-theme-color (find-color-theme (current-theme)) :background)))
 
 (defun foreground-color ()
   (when (current-theme)
-    (second (assoc :foreground (color-theme-specs (find-color-theme (current-theme)))))))
+    (get-color-theme-color (find-color-theme (current-theme)) :foreground)))
 
 (defun base-color (name)
   (check-type name base-color)
   (when (current-theme)
-    (second (assoc name (color-theme-specs (find-color-theme (current-theme)))))))
+    (get-color-theme-color (find-color-theme (current-theme)) name)))
 
-(defun maybe-base-color (name)
-  (if (typep name 'base-color)
-      (base-color name)
-      name))
+(defun ensure-color (color)
+  (typecase color
+    (base-color
+     (base-color color))
+    (color
+     (color-to-hex-string color))
+    (otherwise
+     color)))
 
 (define-major-mode color-theme-selector-mode ()
     (:name "Themes"
@@ -135,15 +144,15 @@
       (erase-buffer buffer)
       (dolist (name (all-color-themes))
         (let ((theme (find-color-theme name)))
-          (if (eq :dark (second (assoc :display-background-mode (color-theme-specs theme))))
+          (if (eq :dark (get-color-theme-color theme :display-background-mode))
               (push (cons name theme) dark-themes)
               (push (cons name theme) light-themes))))
       (loop :for (name . theme) :in (append dark-themes light-themes)
             :do (insert-string
                  point name
                  :attribute (make-attribute
-                             :foreground (second (assoc :foreground (color-theme-specs theme)))
-                             :background (second (assoc :background (color-theme-specs theme))))
+                             :foreground (get-color-theme-color theme :foreground)
+                             :background (get-color-theme-color theme :background))
                  'theme name)
                 (insert-character point #\newline)))
     (buffer-start point)
@@ -151,8 +160,7 @@
     (switch-to-buffer buffer)
     (change-buffer-mode buffer 'color-theme-selector-mode)))
 
-
 (defun initialize-color-theme ()
-  (load-theme (config :color-theme "decaf") nil))
+  (load-theme (config :color-theme "lem-default") nil))
 
 (add-hook *after-init-hook* 'initialize-color-theme)

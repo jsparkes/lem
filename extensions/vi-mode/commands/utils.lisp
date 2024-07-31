@@ -138,7 +138,7 @@
                               (or (range-type retval) :exclusive)))
                      (otherwise
                       (values start
-                              (copy-point (current-point))
+                              (copy-point (current-point) :temporary)
                               (command-motion-type command)))))))
              (command-motion-type (command)
                (if (typep command 'vi-motion)
@@ -162,22 +162,21 @@
                      (save-excursion
                        (ignore-some-conditions (end-of-buffer)
                          (next-logical-line (1- (or uarg 1))))
-                       (values start (copy-point (current-point)) :line))
-                     ;; Ignore an invalid operator (like 'dJ')
-                     nil))
+                       (values start (copy-point (current-point) :temporary) :line))
+                     ;; raise error for invalid commands
+                     (error 'editor-abort :message nil)))
                 (otherwise
                  (call-motion command uarg)))))))))
 
 (defun visual-region ()
-  (if (visual-p)
-      (values-list
-       (append (visual-range)
-               (list
-                (cond
-                  ((visual-line-p) :line)
-                  ((visual-block-p) :block)
-                  (t :exclusive)))))
-      (values nil nil nil)))
+  (assert (visual-p))
+  (values-list
+   (append (visual-range)
+           (list
+            (cond
+              ((visual-line-p) :line)
+              ((visual-block-p) :block)
+              (t :exclusive))))))
 
 (defun operator-region (motion &key move-point with-type)
   (multiple-value-bind (start end type)

@@ -294,15 +294,15 @@
 ;; for resizing display
 (defkeycode "[resize]" #x222)
 (let ((resize-delay-counter 0)
-      (lock (bt:make-lock)))
+      (lock (bt2:make-lock)))
   (defun now-resizing ()
-    (bt:with-lock-held (lock)
+    (bt2:with-lock-held (lock)
       resize-delay-counter))
   (defun (setf now-resizing) (v)
-    (bt:with-lock-held (lock)
+    (bt2:with-lock-held (lock)
       (setf resize-delay-counter v)))
   (defun now-resizing-countdown ()
-    (bt:with-lock-held (lock)
+    (bt2:with-lock-held (lock)
       (decf resize-delay-counter))))
 (defvar *min-cols*  5)
 (defvar *min-lines* 3)
@@ -355,8 +355,8 @@
   (let* ((foreground (attribute-foreground attribute))
          (background (attribute-background attribute))
          (bits (logior (if (or cursorp (lem:attribute-reverse attribute))
-                           (lem.term:get-color-pair background foreground)
-                           (lem.term:get-color-pair foreground background))
+                           (lem-ncurses/term:get-color-pair background foreground)
+                           (lem-ncurses/term:get-color-pair foreground background))
                        0
                        (if (lem:attribute-bold attribute)
                            charms/ll:PDC_A_BOLD
@@ -709,7 +709,7 @@
       (loop
          (handler-case
              (progn
-               (unless (bt:thread-alive-p editor-thread) (return))
+               (unless (bt2:thread-alive-p editor-thread) (return))
                (let ((event (get-event)))
                  (case event
                    ;; retry is necessary to exit lem normally

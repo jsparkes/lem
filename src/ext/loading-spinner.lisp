@@ -73,19 +73,20 @@
 
 (defmethod start-loading-spinner ((type (eql :modeline)) &key buffer loading-message)
   (check-type buffer buffer)
-  (unless (buffer-spinner buffer)
-    (let* ((spinner)
-           (timer (start-timer (make-timer (lambda () (update-spinner-frame spinner)))
-                               +loading-interval+
-                               t)))
-      (setf spinner
-            (make-instance 'modeline-spinner
-                           :timer timer
-                           :loading-message loading-message
-                           :buffer buffer))
-      (modeline-add-status-list spinner buffer)
-      (setf (buffer-spinner buffer) spinner)
-      spinner)))
+  (when (buffer-spinner buffer)
+    (stop-loading-spinner (buffer-spinner buffer)))
+  (let* ((spinner)
+         (timer (start-timer (make-timer (lambda () (update-spinner-frame spinner)))
+                             +loading-interval+
+                             :repeat t)))
+    (setf spinner
+          (make-instance 'modeline-spinner
+                         :timer timer
+                         :loading-message loading-message
+                         :buffer buffer))
+    (modeline-add-status-list spinner buffer)
+    (setf (buffer-spinner buffer) spinner)
+    spinner))
 
 (defmethod stop-loading-spinner ((spinner modeline-spinner))
   (let ((buffer (modeline-spinner-buffer spinner)))
@@ -100,7 +101,7 @@
 
 (defun update-line-spinner (spinner)
   (update-spinner-frame spinner)
-  (setf (lem-core::overlay-line-endings-text (line-spinner-overlay spinner))
+  (setf (lem-core::line-endings-overlay-text (line-spinner-overlay spinner))
         (spinner-text spinner)))
 
 (defmethod start-loading-spinner ((type (eql :line)) &key point loading-message)
@@ -113,13 +114,13 @@
   (check-type start point)
   (check-type end point)
   (let* ((spinner)
-         (timer (start-timer (make-timer 
+         (timer (start-timer (make-timer
                               (lambda ()
                                 (when spinner
                                   (update-line-spinner spinner))))
                              +loading-interval+
-                             t))
-         (overlay (make-overlay-line-endings
+                             :repeat t))
+         (overlay (make-line-endings-overlay
                    start
                    end
                    'spinner-attribute

@@ -99,13 +99,9 @@
       (editor-condition (c)
         (restart-case (error c)
           (lem-restart:message ()
-            (typecase c
-              (editor-abort
-               (let ((message (princ-to-string c)))
-                 (unless (string= "" message)
-                   (message "~A" message))))
-              (otherwise
-               (message "~A" c))))
+            (let ((message (princ-to-string c)))
+              (unless (equal "" message)
+                (message "~A" message))))
           (lem-restart:call-function (fn)
             (funcall fn)))))))
 
@@ -149,7 +145,7 @@
   (signal 'exit-editor :report report))
 
 (defun call-background-job (function cont)
-  (bt:make-thread
+  (bt2:make-thread
    (lambda ()
      (let ((error-text))
        (handler-case

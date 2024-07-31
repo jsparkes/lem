@@ -10,14 +10,15 @@
 (defvar *syntax-scan-window-recursive-p* nil)
 (defvar *help* "Usage: lem [ OPTION-OR-FILENAME ] ...
 Options:
-        -q, --no-init-file      do not load ~/.lem/init.lisp
-        --slime PORT            start slime on PORT
-        --eval EXPR             evaluate lisp expression EXPR
-        --debug                 enable debugger
-        --log-filename FILENAME file name of the log file
-        --kill                  immediately exit
-        -v, --version           print the version number and exit
-        -h, --help              display this help and exit" 
+        -q, --no-init-file        do not load ~/.lem/init.lisp
+        --slime PORT              start slime on PORT
+        --eval EXPR               evaluate lisp expression EXPR
+        --debug                   enable debugger
+        --log-filename FILENAME   file name of the log file
+        --kill                    immediately exit
+        -i, --interface INTERFACE interface to use, either sdl2 or ncurses
+        -v, --version             print the version number and exit
+        -h, --help                display this help and exit"
 "Help output for cli")
 
 (defun syntax-scan-window (window)
@@ -56,7 +57,7 @@ Options:
       (start-timer (make-idle-timer (lambda ()
                                       (syntax-scan-window (current-window)))
                                     :name "syntax-scan")
-                   100 t)
+                   100 :repeat t)
       (add-hook *window-scroll-functions*
                 (lambda (window)
                   (syntax-scan-window window)))
@@ -89,7 +90,8 @@ Options:
   args
   (debug nil)
   (log-filename nil)
-  (no-init-file nil))
+  (no-init-file nil)
+  (interface nil))
 
 (defun parse-args (args)
   (let ((parsed-args
@@ -120,9 +122,15 @@ Options:
                                  (let ((filename (pop args)))
                                    (unless filename
                                      (error "Please, specify a filename to log to."))
-                                   
                                    (setf (command-line-arguments-log-filename parsed-args)
                                          filename)))
+                                ((member arg '("-i" "--interface") :test #'equal)
+                                 (let ((interface (pop args)))
+                                   (if (and interface (plusp (length interface)))
+                                       (setf (command-line-arguments-interface parsed-args)
+                                             (alexandria:make-keyword (string-upcase interface)))
+                                       (write-line "Please specify an interface to use."
+                                                   *error-output*))))
                                 ((equal arg "--kill")
                                  `(uiop:quit))
                                 ((member arg '("-v" "--version") :test #'equal)
@@ -184,11 +192,29 @@ Options:
       (unless (uiop:pathname-equal current-dir (user-homedir-pathname))
         (maybe-load (merge-pathnames ".lemrc" current-dir))))))
 
+(defun initialize-source-registry ()
+  (asdf:initialize-source-registry
+   `(:source-registry
+     :inherit-configuration
+     (:also-exclude ".qlot")
+     (:tree ,(asdf:system-source-directory :lem)))))
+
+(defun init-at-build-time ()
+  "This function is called when an lem executable file is built.
+If a file named $HOME/.lem/build-init.lisp exists, it is loaded.
+The difference is that init.lisp loading is called when the editor is started,
+while build-init.lisp is called when the binary file is created.
+See scripts/build-ncurses.lisp or scripts/build-sdl2.lisp"
+  (initialize-source-registry)
+  (let ((file (merge-pathnames "build-init.lisp" (lem-home))))
+    (when (uiop:file-exists-p file)
+      (load file))))
+
 (defun init (args)
   (unless (equal (funcall 'user-homedir-pathname) ;; funcall for sbcl optimization
                  *original-home*)
-    (init-quicklisp (merge-pathnames "quicklisp/" (lem-home))))
-  (uiop:symbol-call :lem-core :load-site-init)
+    (when (uiop:featurep :quicklisp)
+      (init-quicklisp (merge-pathnames "quicklisp/" (lem-home)))))
   (run-hooks *before-init-hook*)
   (unless (command-line-arguments-no-init-file args)
     (load-init-file))
@@ -196,7 +222,7 @@ Options:
   (apply-args args))
 
 (defun run-editor-thread (initialize args finalize)
-  (bt:make-thread
+  (bt2:make-thread
    (lambda ()
      (when initialize (funcall initialize))
      (unwind-protect
@@ -211,16 +237,10 @@ Options:
        (setf *in-the-editor* nil)))
    :name "editor"))
 
-#+sbcl
 (defun find-editor-thread ()
-  (find "editor" (sb-thread:list-all-threads)
+  (find "editor" (bt2:all-threads)
         :test #'equal
-        :key #'sb-thread:thread-name))
-#-sbcl
-(defun find-editor-thread ()
-  (find "editor" (bt:all-threads)
-        :test #'equal
-        :key #'bt:thread-name))
+        :key #'bt2:thread-name))
 
 (defun lem (&rest args)
 
@@ -247,9 +267,16 @@ Options:
   (cond (*in-the-editor*
          (apply-args args))
         (t
-         (let ((implementation (get-default-implementation :errorp nil)))
+         (let ((implementation
+                (get-default-implementation
+                 :errorp nil
+                 :implementation
+                 (or (command-line-arguments-interface args)
+                     (if (interactive-stream-p *standard-input*)
+                         :ncurses
+                         :sdl2)))))
            (unless implementation
-             (ql:quickload :lem-ncurses)
+             (maybe-load-systems :lem-ncurses)
              (setf implementation (get-default-implementation)))
            (invoke-frontend
             (lambda (&optional initialize finalize)
@@ -266,3 +293,13 @@ Options:
               (lem))
           t)
       sb-ext:*ed-functions*)
+
+
+(add-hook *after-init-hook*
+          (lambda ()
+            (when *editor-warnings*
+              (let ((buffer (make-buffer "*EDITOR WARNINGS*")))
+                (dolist (warning *editor-warnings*)
+                  (insert-string (buffer-point buffer) warning)
+                  (insert-character (buffer-point buffer) #\newline))
+                (pop-to-buffer buffer)))))

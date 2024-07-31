@@ -1,6 +1,9 @@
 (defpackage :lem-sdl2/image-buffer
-  (:use :cl
-   :lem :lem-sdl2)
+  (:use
+   :cl
+   :lem
+   :lem-sdl2
+   :lem-sdl2/graphics)
   (:export :image-fit-to-height
            :image-fit-to-screen
            :image-fit-to-width
@@ -33,8 +36,8 @@
 (defun image-information (window)
   (let ((image (buffer-image (window-buffer window))))
     (format nil "  ~Dx~D (x~,2F)"
-            (lem-sdl2::image-width image)
-            (lem-sdl2::image-height image)
+            (image-width image)
+            (image-height image)
             (buffer-scaling (window-buffer window)))))
 
 ;; Zoom.
@@ -53,7 +56,7 @@
 
 (defmethod render :before (texture window (buffer image-buffer))
   (sdl2:set-render-target (current-renderer) texture)
-  (lem-sdl2::set-render-color lem-sdl2::*display* (lem-sdl2::display-background-color lem-sdl2::*display*))
+  (lem-sdl2/display::set-render-color lem-sdl2/display::*display* (lem-sdl2/display::display-background-color lem-sdl2/display::*display*))
   (sdl2:with-rects ((rect 0
                           0
                           (* (lem-sdl2::char-width)
@@ -70,8 +73,8 @@
                 image
                 :x 0
                 :y 0
-                :width (round (* (lem-sdl2::image-width image) (buffer-scaling buffer)))
-                :height (round (* (lem-sdl2::image-height image) (buffer-scaling buffer))))))
+                :width (round (* (image-width image) (buffer-scaling buffer)))
+                :height (round (* (image-height image) (buffer-scaling buffer))))))
 
 (defun reset-buffer-scale (buffer)
   (clear-drawables buffer)
@@ -81,13 +84,13 @@
                 image
                 :x 0
                 :y 0
-                :width (lem-sdl2::image-width image)
-                :height (lem-sdl2::image-height image))))
+                :width (image-width image)
+                :height (image-height image))))
 
 (defun fit-to-width (buffer)
   (clear-drawables buffer)
   (let* ((image (buffer-image buffer))
-         (image-width (lem-sdl2::image-width image))
+         (image-width (image-width image))
          (display-width (* (lem-sdl2::char-width)
                            (window-width (current-window)))))
     (let* ((ratio (/ image-width display-width))
@@ -98,7 +101,7 @@
 (defun fit-to-height (buffer)
   (clear-drawables buffer)
   (let* ((image (buffer-image buffer))
-         (image-height (lem-sdl2::image-height image))
+         (image-height (image-height image))
          (display-height (* (lem-sdl2::char-height)
                             (1-
                              (window-height (current-window))))))
@@ -108,24 +111,21 @@
       (scale-buffer-image buffer (* -1 (/ percent 100))))))
 
 (defun fit-to-screen (buffer)
-  "If the image is bigger that the display, shrink it."
+  "Change the image dimensions so it fits in the screen."
   (let* ((image (buffer-image buffer))
-         (width (lem-sdl2::image-width image))
-         (height (lem-sdl2::image-height image))
+         (width (image-width image))
+         (height (image-height image))
          (display-width (* (lem-sdl2::char-width)
                            (window-width (current-window))))
          (display-height (* (lem-sdl2::char-height)
                             (1-
                              (window-height (current-window)))))
          (ratio-image (/ height width))
-         (ratio-display (/ display-height display-width))
-         (needs-resizing-p (or (> width display-width)
-                               (> height display-height))))
+         (ratio-display (/ display-height display-width)))
 
-    (when needs-resizing-p
-      (if (>= ratio-image ratio-display)
-          (fit-to-height buffer)
-          (fit-to-width buffer)))))
+    (if (>= ratio-image ratio-display)
+        (fit-to-height buffer)
+        (fit-to-width buffer))))
 
 (define-command image-zoom-in () ()
   (scale-buffer-image (current-buffer) 0.1))
@@ -134,15 +134,19 @@
   (scale-buffer-image (current-buffer) -0.1))
 
 (define-command image-zoom-reset () ()
+  "Set the image to its original size."
   (reset-buffer-scale (current-buffer)))
 
 (define-command image-fit-to-width () ()
+  "Make the image as large as the display width."
   (fit-to-width (current-buffer)))
 
 (define-command image-fit-to-height () ()
+  "Make the image as big as the display height."
   (fit-to-height (current-buffer)))
 
 (define-command image-fit-to-screen () ()
+  "Enlarge or shrink the image to fit the display."
   (fit-to-screen (current-buffer)))
 
 (defclass sdl2-find-file-executor (lem:find-file-executor) ())

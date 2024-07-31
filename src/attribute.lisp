@@ -46,11 +46,11 @@
 
 (defun make-attribute (&key foreground background reverse bold underline plist)
   (make-instance 'attribute
-                 :foreground (or (maybe-base-color foreground) nil)
-                 :background (or (maybe-base-color background) nil)
+                 :foreground (or (ensure-color foreground) nil)
+                 :background (or (ensure-color background) nil)
                  :reverse reverse
                  :bold bold
-                 :underline (or (maybe-base-color underline) underline)
+                 :underline (or (ensure-color underline) underline)
                  :plist plist))
 
 (defun ensure-attribute (x &optional (errorp t))
@@ -79,16 +79,20 @@
                                  (attribute-plist under))))
 
 (defun attribute-equal (attribute1 attribute2)
-  (and (equal (attribute-foreground attribute1)
-              (attribute-foreground attribute2))
-       (equal (attribute-background attribute1)
-              (attribute-background attribute2))
-       (equal (attribute-reverse attribute1)
-              (attribute-reverse attribute2))
-       (equal (attribute-bold attribute1)
-              (attribute-bold attribute2))
-       (equal (attribute-underline attribute1)
-              (attribute-underline attribute2))))
+  (if (or (null attribute1) (null attribute2))
+      (and (null attribute1) (null attribute2))
+      (let ((attribute1 (lem-core:ensure-attribute attribute1))
+            (attribute2 (lem-core:ensure-attribute attribute2)))
+        (and (equal (attribute-foreground attribute1)
+                    (attribute-foreground attribute2))
+             (equal (attribute-background attribute1)
+                    (attribute-background attribute2))
+             (equal (attribute-reverse attribute1)
+                    (attribute-reverse attribute2))
+             (equal (attribute-bold attribute1)
+                    (attribute-bold attribute2))
+             (equal (attribute-underline attribute1)
+                    (attribute-underline attribute2))))))
 
 (defun set-attribute (attribute &key (foreground nil foregroundp)
                                      (background nil backgroundp)
@@ -173,8 +177,8 @@
      ',name))
 
 (define-attribute cursor
-  (:light :foreground "white" :background "black")
-  (:dark :foreground "black" :background "white"))
+  (:light :background "black")
+  (:dark :background "white"))
 
 (define-attribute fake-cursor
   (:light :foreground "white" :background "blue")
@@ -228,3 +232,28 @@
 
 (define-attribute syntax-builtin-attribute
   (t :foreground "#FF87FF"))
+
+
+(defun attribute-value* (attribute key)
+  (let ((attribute (ensure-attribute attribute nil)))
+    (when attribute
+      (attribute-value attribute key))))
+
+(defun attribute-image (attribute)
+  (attribute-value* attribute :image))
+
+(defun attribute-width (attribute)
+  (attribute-value* attribute :width))
+
+(defun attribute-height (attribute)
+  (attribute-value* attribute :height))
+
+(defun attribute-font (attribute)
+  (attribute-value* attribute :font))
+
+(defun cursor-attribute-p (attribute)
+  (and (attribute-p attribute)
+       (attribute-value attribute :cursor)))
+
+(defun set-cursor-attribute (attribute)
+  (setf (attribute-value attribute :cursor) t))

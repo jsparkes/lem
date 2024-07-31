@@ -6,6 +6,7 @@
   (:export :forward-word-begin
            :forward-word-end
            :backward-word-begin
+           :backward-word-end
            :word-char-p
            :word-char-type
            :broad-word-char-type
@@ -30,10 +31,15 @@
       ((blank-char-p char) :blank)
       (t :non-word))))
 
+(defun non-broad-word-char-p (char)
+  (funcall (cdr (option-raw-value "isseparator"))
+           char))
+
 (defun broad-word-char-type (char)
   (when char
     (cond
       ((blank-char-p char) :blank)
+      ((non-broad-word-char-p char) :non-word)
       (t :word))))
 
 (defun forward-word-begin (char-type-fn &optional (point (current-point)))
@@ -73,3 +79,17 @@
       (skip-chars-backward point
                            (lambda (char)
                              (eq type (funcall char-type-fn char)))))))
+
+(defun backward-word-end (char-type-fn &optional (point (current-point)))
+  (flet ((point-char () (character-at point)))
+    ;; Not at boundary
+    (when (eq (funcall char-type-fn (point-char))
+              (funcall char-type-fn (character-at point -1)))
+      (let ((type (funcall char-type-fn (point-char))))
+        (skip-chars-backward point
+                             (lambda (char)
+                               (eq type (funcall char-type-fn char))))))
+    (character-offset point -1)
+    (when (blank-char-p (point-char))
+      (skip-chars-backward point #'blank-char-p)
+      (character-offset point -1))))

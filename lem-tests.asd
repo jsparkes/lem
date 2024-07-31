@@ -1,6 +1,5 @@
 (defsystem "lem-tests"
-  :depends-on ("lem-base"
-               "lem"
+  :depends-on ("lem"
                "lem-fake-interface"
                "lem-lisp-syntax"
                "lem-lisp-mode"
@@ -9,6 +8,8 @@
                "rove")
   :pathname "tests"
   :components ((:file "utilities")
+               (:module "buffer"
+                :components ((:file "internal")))
                (:module "common"
                 :components ((:file "ring")
                              (:file "killring")

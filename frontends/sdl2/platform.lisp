@@ -19,11 +19,9 @@
       (setf *platform*
             (let ((platform-name (sdl2:platform)))
               (alexandria:switch (platform-name :test #'equal)
-                ("Linux"
-                 (make-instance 'linux))
-                ("Mac OS X"
-                 (make-instance 'mac))
                 ("Windows"
                  (make-instance 'windows))
+                ("Mac OS X"
+                 (make-instance 'mac))
                 (otherwise
-                 (error "unsupported platform: ~A" (sdl2:platform))))))))
+                 (make-instance 'linux)))))))

@@ -1,6 +1,25 @@
+#+ros.installing
+(uiop:with-current-directory ((uiop:pathname-directory-pathname *load-truename*))
+  (unless (uiop:directory-exists-p (merge-pathnames #P".qlot/"))
+    (setf (uiop:getenv "SBCL_HOME") "")
+    (uiop:run-program '("qlot" "install" "--no-deps")
+                      :output t
+                      :error-output t))
+  #+quicklisp
+  (setf ql:*quicklisp-home* (merge-pathnames #P".qlot/"))
+  (let ((local-project-dir (or roswell:*local-project-directories*
+                               #+quicklisp (copy-list ql:*local-project-directories*))))
+    (load (merge-pathnames #P".qlot/setup.lisp"))
+    ;; XXX: Not to modify the local project directories to install ros scripts in ~/.roswell/bin
+    ;;   ref. https://github.com/roswell/roswell/blob/5b267381a66d36a514e2eee7283543f828541a63/lisp/util-install-quicklisp.lisp#L146
+    (set (intern (string :*local-project-directories*) :ql) local-project-dir)))
+
 (defsystem "lem"
-  :version "2.1.0"
-  :depends-on ("alexandria"
+  :version "2.2.0"
+  :depends-on ("iterate"
+               "closer-mop"
+               "trivia"
+               "alexandria"
                "trivial-gray-streams"
                "trivial-types"
                "cl-ppcre"
@@ -13,11 +32,10 @@
                "split-sequence"
                "str"
                "dexador"
-               "lem-base"
-               "lem-encodings"
-	       #+sbcl
-	       sb-concurrency
-	       "lem-mailbox")
+               ;; "lem-encodings"
+               #+sbcl
+               sb-concurrency
+               "lem-mailbox")
   :pathname "src"
   :serial t
   :components ((:module "common"
@@ -25,32 +43,83 @@
                              (:file "killring")
                              (:file "history")
                              (:file "timer")
-                             (:file "command")))
+                             (:file "command")
+                             (:file "color")
+                             (:file "queue")
+                             (:file "hooks")
+                             (:file "var")
+                             (:file "socket")
+                             (:file "utils")
+                             (:module "character"
+                              :serial t
+                              :components ((:file "icon")
+                                           (:file "eastasian")
+                                           (:file "string-width-utils")
+                                           (:file "package")))))
+               (:module "buffer"
+                :serial t
+                :components ((:file "errors")
+                             (:file "file-utils")
+                             (:file "line")
+                             (:file "buffer-list-manager")
+                             (:file "syntax-table")
+                             (:file "interrupt")
+                             (:file "package")
+                             (:module "internal"
+                              :serial t
+                              :components ((:file "var")
+                                           (:file "editor-variables")
+                                           (:file "buffer")
+                                           (:file "point")
+                                           (:file "edit")
+                                           (:file "mark")
+                                           (:file "undo")
+                                           (:file "buffer-insert")
+                                           (:file "basic")
+                                           (:file "syntax-predicates")
+                                           (:file "search")
+                                           (:file "parse-partial-sexp")
+                                           (:file "syntax-scan")
+                                           (:file "syntax-parser")
+                                           (:file "tmlanguage")
+                                           (:file "check-corruption")))
+                             (:file "encodings")
+                             (:file "file")
+                             (:file "indent")))
                (:file "internal-packages")
-               (:file "quicklisp-utils")
+               (:file "system-utils")
                (:file "version")
                (:file "config")
                (:file "errors")
                (:file "system")
                (:file "key")
                (:file "macros")
-               (:file "color")
                (:file "attribute")
                (:file "clipboard")
+               (:file "save-excursion")
                (:file "killring")
                (:file "file")
-               (:file "screen")
                (:file "frame")
                (:file "echo")
                (:file "prompt")
-               (:file "window-tree")
-               (:file "window")
+               (:file "format")
+               (:module "window"
+                :serial t
+                :components ((:file "window-tree")
+                             (:file "window")
+                             (:file "virtual-line")
+                             (:file "floating-window")
+                             (:file "header-window")
+                             (:file "side-window")))
+               (:file "buffer-ext") ; TODO
                (:file "popup")
                (:file "modeline")
                (:file "command")
-               (:file "defcommand")
                (:file "mode")
                (:file "keymap")
+               (:file "defcommand")
+               (:file "fundamental-mode")
+               (:file "region")
                (:file "event-queue")
                (:file "interp")
                (:file "mouse")
@@ -58,13 +127,12 @@
                (:file "input")
                (:file "overlay")
                (:file "streams")
-               (:file "fundamental-mode")
                (:file "completion")
                (:file "typeout")
                (:file "cursors")
                (:file "command-advices")
                (:file "interface")
-               (:file "display")
+               (:file "highlight-line")
                (:file "site-init")
                (:file "lem")
 
@@ -87,6 +155,13 @@
                              (:file "font")
                              (:file "other" :depends-on ("file"))
                              (:file "frame")))
+
+               (:module "display"
+                :serial t
+                :components ((:file "base")
+                             (:file "char-type")
+                             (:file "logical-line")
+                             (:file "physical-line")))
 
                (:file "external-packages")
 
@@ -132,20 +207,22 @@
 
 (defsystem "lem/extensions"
   :depends-on (#+sbcl
+               "lem-welcome"
                "lem-lsp-mode"
                "lem-vi-mode"
                #+sbcl
                "lem-lisp-mode"
                #+sbcl
                "lem-go-mode"
+               "lem-swift-mode"
 
                "lem-c-mode"
                "lem-xml-mode"
                "lem-html-mode"
                "lem-python-mode"
                "lem-posix-shell-mode"
-               "lem-markdown-mode"
                "lem-js-mode"
+               "lem-typescript-mode"
                "lem-json-mode"
                "lem-css-mode"
                "lem-rust-mode"
@@ -171,20 +248,14 @@
                "lem-base16-themes"
                #+sbcl
                "lem-elixir-mode"
+               "lem-erlang-mode"
                "lem-documentation-mode"
-               "lem-elisp-mode"))
-
-(defsystem "lem/legit"
-  :serial t
-  :depends-on ("lem")
-  :pathname "src"
-  :components ((:module "ext/legit"
-                :components ((:file "porcelain")
-                             (:file "peek-legit")
-                             (:file "legit")
-                             (:file "legit-rebase")))
-               (:module "scripts"
-                :components ((:static-file "dumbrebaseeditor.sh")))))
+               "lem-elisp-mode"
+               "lem-markdown-mode"
+               "lem-color-preview"
+               "lem-lua-mode"
+               "lem-terminal"
+               "lem-legit"))
 
 (defsystem "lem/executable"
   :build-operation program-op
