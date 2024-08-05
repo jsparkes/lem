@@ -37,6 +37,7 @@
   (let ((buffer (make-buffer "*tabbar*" :enable-undo-p nil :temporary t)))
     (when (display-light-p)
       (set-attribute-foreground 'tabbar-active-tab-attribute (foreground-color))
+      (set-attribute-background 'tabbar-active-tab-attribute "dark gray")
       (set-attribute-foreground 'tabbar-attribute (foreground-color)))
     (when (display-dark-p)
       (set-attribute-foreground 'tabbar-active-tab-attribute (foreground-color))
