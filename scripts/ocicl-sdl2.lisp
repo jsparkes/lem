@@ -16,11 +16,12 @@
     (pushnew (uiop:getcwd) asdf:*central-registry* :test 'equalp)))
 
 +(and (not (member :ocicl *features*)) (not (member :win32 *features*)))
-(let ((file (merge-pathnames (parse-namestring (str:concat (namestring (user-homedir-pathname)) ".local/ocicl/")) "ocicl-runtime.lisp")))
+(let ((file (merge-pathnames (parse-namestring (str:concat (namestring (user-homedir-pathname)) ".local/share/ocicl/")) "ocicl-runtime.lisp")))
   (when (probe-file file)
     (load file)
     (pushnew (uiop:getcwd) asdf:*central-registry* :test 'equalp)))
 
+#+win32
 (ql:quickload :trivial-package-local-nicknames)
 (ql:quickload :lem-sdl2)
 (lem:init-at-build-time)
