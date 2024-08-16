@@ -218,3 +218,5 @@ trivial-with-current-source-form, ghcr.io/ocicl/trivial-with-current-source-form
 trivial-package-local-nicknames, ghcr.io/ocicl/trivial-package-local-nicknames@sha256:d3b07c875822d9bd91cc0e26c1f681ad05acdc5c50a3f30c8077fb85343e095a, trivial-package-local-nicknames-20240503-8a4d09c/trivial-package-local-nicknames.asd
 cl_plus_ssl.test, ghcr.io/ocicl/cl_plus_ssl@sha256:acb61e8e4d3efcb23f4d86405ad22fdca2d685268c664735c962646a09706ab6, cl-plus-ssl-20240505-17d5cdd/cl+ssl.test.asd
 cl_plus_ssl, ghcr.io/ocicl/cl_plus_ssl@sha256:acb61e8e4d3efcb23f4d86405ad22fdca2d685268c664735c962646a09706ab6, cl-plus-ssl-20240505-17d5cdd/cl+ssl.asd
+cl-package-locks, ghcr.io/ocicl/cl-package-locks@sha256:3cc3430aa866786164cd64110795ba329d72cd98f6606a72a83b04c1dc295a0d, cl-package-locks-20240503-96a358e/cl-package-locks.asd
+trivial-utf-8, ghcr.io/ocicl/trivial-utf-8@sha256:014e7fa0edd7f351c8b38c3247e0cdda438235bb8a086bb0f2bac08f78ef400d, trivial-utf-8-20240503-ba9b4ff/trivial-utf-8.asd
