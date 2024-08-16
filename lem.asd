@@ -253,11 +253,11 @@
                "lem-elisp-mode"
                "lem-markdown-mode"
                "lem-color-preview"
-               #-win32
+               #-ocicl
                "lem-lua-mode"
-               #-win32
+               #-ocicl
                "lem-terminal"
-	       #-win32
+	       #-ocicl
                "lem-legit"))
 
 (defsystem "lem/executable"
