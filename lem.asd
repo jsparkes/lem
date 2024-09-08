@@ -263,7 +263,8 @@
                #-ocicl
                "lem-terminal"
 	       #-ocicl
-               "lem-legit"))
+               "lem-legit"
+               "lem-dashboard"))
 
 (defsystem "lem/executable"
   :build-operation program-op

@@ -442,7 +442,8 @@
    :clear-region-major-mode
    :major-mode-at-point
    :current-major-mode-at-point
-   :with-major-mode)
+   :with-major-mode
+   :paste-using-mode)
   ;; keymap.lisp
   (:export
    :*keymaps*
@@ -641,6 +642,8 @@
    :html-buffer
    :html-buffer-html
    :make-html-buffer
+   :html-buffer-updated-p
+   :invalidate-html-buffer-updated
    :js-eval)
   ;; site-init.lisp
   (:export
