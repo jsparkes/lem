@@ -262,7 +262,7 @@
                "lem-lua-mode"
                #-ocicl
                "lem-terminal"
-	       #-ocicl
+               #-ocicl
                "lem-legit"
                "lem-dashboard"))
 
