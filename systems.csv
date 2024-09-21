@@ -288,3 +288,8 @@ trivial-ws-test, ghcr.io/ocicl/trivial-ws@sha256:004d7c63ae4ef7e7ad5e411c5373aea
 trivial-ws-client, ghcr.io/ocicl/trivial-ws@sha256:004d7c63ae4ef7e7ad5e411c5373aea20f355da1864190936337962a69aaeade, trivial-ws-20240503-ebf1ec0/trivial-ws-client.asd
 hunchensocket, ghcr.io/ocicl/hunchensocket@sha256:d3643f9ef3926b2a6fa0f081a24f0cdb3316fc38cb58d049ab76a27eba7adb68, hunchensocket-20240503-faf2c08/hunchensocket.asd
 trivial-open-browser, ghcr.io/ocicl/trivial-open-browser@sha256:20c37fcc1159c7f5f4dabb366a7742cb47b629c8d0fb4a191ac08578ab661b67, trivial-open-browser-20240503-7ab4743/trivial-open-browser.asd
+cl-charms, ghcr.io/ocicl/cl-charms@sha256:7cf5271c5b8877561112f79c28540f293e3a5ce9808bad0a8d38ec69aa41fe63, cl-charms-20240503-2dd2934/cl-charms.asd
+cl-charms-timer, ghcr.io/ocicl/cl-charms@sha256:7cf5271c5b8877561112f79c28540f293e3a5ce9808bad0a8d38ec69aa41fe63, cl-charms-20240503-2dd2934/cl-charms-timer.asd
+cl-charms-paint, ghcr.io/ocicl/cl-charms@sha256:7cf5271c5b8877561112f79c28540f293e3a5ce9808bad0a8d38ec69aa41fe63, cl-charms-20240503-2dd2934/cl-charms-paint.asd
+cl-charms-marquee, ghcr.io/ocicl/cl-charms@sha256:7cf5271c5b8877561112f79c28540f293e3a5ce9808bad0a8d38ec69aa41fe63, cl-charms-20240503-2dd2934/cl-charms-marquee.asd
+cl-setlocale, ghcr.io/ocicl/cl-setlocale@sha256:0efaba844f0f2b1c2771e1b64a3c7a1b8d23b6bb4e4a797a8e37fbf1d41532a1, cl-setlocale-20240503-f660d07/cl-setlocale.asd
