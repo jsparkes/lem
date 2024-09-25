@@ -256,6 +256,7 @@
                "lem-erlang-mode"
                "lem-documentation-mode"
                "lem-elisp-mode"
+               "lem-terraform-mode"
                "lem-markdown-mode"
                "lem-color-preview"
                #-ocicl
@@ -264,7 +265,8 @@
                "lem-terminal"
                #-ocicl
                "lem-legit"
-               "lem-dashboard"))
+               "lem-dashboard"
+               "lem-copilot"))
 
 (defsystem "lem/executable"
   :build-operation program-op
