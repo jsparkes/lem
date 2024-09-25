@@ -426,7 +426,9 @@
                   :keymaps (append (lem-core::all-keymaps)
                                    (list *copilot-completion-keymap*))))
 
-(defun show-and-apply-completion (completions &key (index 0) (next #'next-completion) (previous #'previous-completion))
+(defun show-and-apply-completion (completions &key (index 0)
+                                                   (next #'next-completion)
+                                                   (previous #'previous-completion))
   (let ((completion (elt completions index)))
     (setf *completion* completion)
     (copilot:notify-shown (agent) (gethash "uuid" completion))
