@@ -100,8 +100,6 @@ jsonrpc, ghcr.io/ocicl/jsonrpc@sha256:866829108a17aab1db5c485b42da908d67da6f8856
 lem, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/lem.asd
 lem-asciidoc-mode, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/extensions/asciidoc-mode/lem-asciidoc-mode.asd
 lem-asm-mode, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/extensions/asm-mode/lem-asm-mode.asd
-lem-base16-themes, ghcr.io/ocicl/lem-base16-themes@sha256:38faa67d164e475c61443ae81e2b7189b1a27c096c2428f738fbfb71fa610086, lem-base16-themes-20240503-74335ff/lem-base16-themes.asd
-lem-base16-themes-generate, ghcr.io/ocicl/lem-base16-themes@sha256:38faa67d164e475c61443ae81e2b7189b1a27c096c2428f738fbfb71fa610086, lem-base16-themes-20240503-74335ff/lem-base16-themes-generate.asd
 lem-bracket-paren-mode, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/contrib/bracket-paren-mode/lem-bracket-paren-mode.asd
 lem-c-mode, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/extensions/c-mode/lem-c-mode.asd
 lem-calc-mode, ghcr.io/ocicl/lem@sha256:bc4b306b0e20aec1a4910ca1cc8fe19303e39405c88c788ec4396589df49cf37, lem-20240924-87fbab31/contrib/calc-mode/lem-calc-mode.asd
@@ -305,3 +303,5 @@ winhttp, ghcr.io/ocicl/winhttp@sha256:f4955086d194e6ae1665894da2149dac0ad850d953
 xsubseq, ghcr.io/ocicl/xsubseq@sha256:7605d14f7cc7fd2f63190ad81fe7bd65daef105d6728ee6bb59baef49da2aa51, xsubseq-20240503-5ce430b/xsubseq.asd
 xsubseq-test, ghcr.io/ocicl/xsubseq@sha256:7605d14f7cc7fd2f63190ad81fe7bd65daef105d6728ee6bb59baef49da2aa51, xsubseq-20240503-5ce430b/xsubseq-test.asd
 yason, ghcr.io/ocicl/yason@sha256:4a1ce0b1cab070be2a87569feeb61bfc44f41ae0c804af2c0c71ab594f80db40, yason-20240503-f4ad893/yason.asd
+lem-base16-themes, ghcr.io/ocicl/lem-base16-themes@sha256:38faa67d164e475c61443ae81e2b7189b1a27c096c2428f738fbfb71fa610086, lem-base16-themes-20240503-74335ff/lem-base16-themes.asd
+lem-base16-themes-generate, ghcr.io/ocicl/lem-base16-themes@sha256:38faa67d164e475c61443ae81e2b7189b1a27c096c2428f738fbfb71fa610086, lem-base16-themes-20240503-74335ff/lem-base16-themes-generate.asd

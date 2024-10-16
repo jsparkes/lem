@@ -259,7 +259,6 @@
                "lem-terraform-mode"
                "lem-markdown-mode"
                "lem-color-preview"
-               #-ocicl
                "lem-lua-mode"
                #-ocicl
                "lem-terminal"
