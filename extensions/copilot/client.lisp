@@ -92,27 +92,25 @@
   (request-log :notify method params)
   (jsonrpc:notify (client-jsonrpc client) method params))
 
-(defun initialize (client &key callback)
-  (request-async client
-                 "initialize"
-                 (hash "capabilities"
-                       (hash "workspace"
-                             (hash "workspaceFolders" t
-                                   "editorConfiguration" (hash "enableAutoCompletions" t))))
-                 :callback callback))
+(defun initialize (client)
+  (request client
+           "initialize"
+           (hash "capabilities"
+                 (hash "workspace"
+                       (hash "workspaceFolders" t
+                             "editorConfiguration" (hash "enableAutoCompletions" t))))))
 
 (defun initialized (client)
   (notify client "initialized" (hash)))
 
-(defun set-editor-info (client &key callback)
-  (request-async client
-                 "setEditorInfo"
-                 (hash "editorInfo"
-                       (hash "name" "Lem"
-                             "version" (lem:get-version-string))
-                       "editorPluginInfo" (hash "name" "lem-copilot"
-                                                "version" "0.0"))
-                 :callback callback))
+(defun set-editor-info (client)
+  (request client
+           "setEditorInfo"
+           (hash "editorInfo"
+                 (hash "name" "Lem"
+                       "version" (lem:get-version-string))
+                 "editorPluginInfo" (hash "name" "lem-copilot"
+                                          "version" "0.0"))))
 
 (defun sign-in-initiate (client)
   (request client
