@@ -12,6 +12,8 @@
 (define-attribute cycling-attribute
   (t :foreground "green"))
 
+(define-condition already-sign-in (editor-error) ())
+
 (defvar *client* nil)
 
 (defun client ()
@@ -256,19 +258,6 @@
 (define-key *copilot-mode-keymap* "M-n" 'copilot-next-suggestion)
 (define-key *copilot-mode-keymap* "M-p" 'copilot-previous-suggestion)
 
-(defun setup-client-async (then)
-  (let ((client (client:run-client :process (run-process))))
-    (client:connect client)
-    (initialize client
-                (lambda (response)
-                  (declare (ignore response))
-                  (client:initialized client)
-                  (set-editor-info client
-                                   (lambda (response)
-                                     (declare (ignore response))
-                                     (setf *client* client)
-                                     (funcall then)))))))
-
 (defun copilot-mode-on ()
   (unless (installed-copilot-server-p)
     (copilot-install-server)
@@ -296,7 +285,7 @@
     (notify-text-document/did-close buffer)))
 
 (defun on-post-command ()
-  (notify-rejected))
+  (cancel-inline-completion))
 
 (defun before-change-arg-to-content-change (point arg)
   (etypecase arg
@@ -349,90 +338,94 @@
 
 
 ;;; complete
-(defvar *completion* nil)
+(defvar *inline-completion-request* nil)
+(defvar *completion-canceled* nil)
 
 (defvar *copilot-completion-keymap* (make-keymap :name "Copilot Completion"))
 
 (define-key *copilot-completion-keymap* "Tab" 'copilot-accept-suggestion)
-(define-key *copilot-completion-keymap* "M-n" 'copilot-next-suggestion)
-(define-key *copilot-completion-keymap* "M-p" 'copilot-previous-suggestion)
-
-(defun check-completions (completions)
-  (when (= 1 (length completions))
-    (editor-error "No more completions")))
-
-(defun show-next-completion (completions &key (index 0))
-  (check-completions completions)
-  (show-and-apply-completion
-   completions
-   :index index
-   :next (lambda ()
-           (show-next-completion completions
-                                 :index (mod (1+ index) (length completions))))))
-
-(defun show-previous-completion (completions &key (index 0))
-  (check-completions completions)
-  (show-and-apply-completion
-   completions
-   :index index
-   :next (lambda ()
-           (show-previous-completion completions
-                                     :index (mod (1- index) (length completions))))))
-
-(defun cycle-completion (next-or-previous-function)
-  (alexandria:if-let (response (buffer-completions-cache (current-buffer)))
-    (funcall next-or-previous-function (gethash "completions" response))
-    (copilot:get-completions-cycling
-     (agent)
-     :doc (make-doc (current-point))
-     :callback (lambda (response)
-                 (send-event (lambda ()
-                               (setf (buffer-completions-cache (current-buffer)) response)
-                               (funcall next-or-previous-function
-                                        (gethash "completions" response) :index 1)))))))
-
-(defun next-completion ()
-  (cycle-completion #'show-next-completion))
-
-(defun previous-completion ()
-  (cycle-completion #'show-previous-completion))
-
-(defun replace-with-completion (point completion)
-  (let* ((range (gethash "range" completion)))
-    (with-point ((start point)
-                 (end point))
-      (move-to-lsp-position start (gethash "start" range))
-      (move-to-lsp-position end (gethash "end" range))
-      (delete-between-points start end)
-      (insert-string start (gethash "text" completion)))))
-
-(defun show-completion (display-text)
-  (let ((*inhibit-did-change-notification* t))
-    (lem-lsp-mode::reset-buffer-diagnostic (current-buffer))
-    (unwind-protect
-         (progn
-           (buffer-undo-boundary (current-buffer))
-           (save-excursion
-             (insert-string (current-point)
-                            display-text
-                            :attribute 'copilot-suggestion-attribute))
-           (loop :for v := (sit-for 10)
-                 :while (eq v :timeout)
-                 :finally (return-from show-completion v)))
-      (buffer-undo (current-point)))))
+(define-key *copilot-completion-keymap* 'copilot-next-suggestion 'copilot-next-suggestion)
+(define-key *copilot-completion-keymap* 'copilot-previous-suggestion 'copilot-previous-suggestion)
 
 (defun find-copilot-completion-command (key)
   (lookup-keybind key
                   :keymaps (append (lem-core::all-keymaps)
                                    (list *copilot-completion-keymap*))))
 
-(defun show-and-apply-completion (completions &key (index 0)
-                                                   (next #'next-completion)
-                                                   (previous #'previous-completion))
-  (let ((completion (elt completions index)))
-    (setf *completion* completion)
-    (copilot:notify-shown (agent) (gethash "uuid" completion))
-    (let ((key (show-completion (gethash "displayText" completion))))
+(defun search-preffix (str1 str2)
+  (loop :for i :from 0
+        :for c1 :across str1
+        :for c2 :across str2
+        :while (char= c1 c2)
+        :finally (return i)))
+
+(defun replace-with-inline-completion (point item)
+  (let ((range (gethash "range" item)))
+    (with-point ((start point :left-inserting)
+                 (end point :right-inserting))
+      (move-to-lsp-position start (gethash "start" range))
+      (move-to-lsp-position end (gethash "end" range))
+      (let* ((insert-text (gethash "insertText" item))
+             (text (points-to-string start end))
+             (pos (search-preffix text insert-text)))
+        (character-offset start pos)
+        (delete-between-points start end)
+        (insert-string end
+                       (subseq insert-text pos))))))
+
+(defun preview-inline-completion-item (point item &key additional-text)
+  (let ((range (gethash "range" item)))
+    (with-point ((start point :left-inserting)
+                 (end point :left-inserting))
+      (move-to-lsp-position start (gethash "start" range))
+      (move-to-lsp-position end (gethash "end" range))
+      (let* ((insert-text (gethash "insertText" item))
+             (text (points-to-string start end))
+             (pos (search-preffix text insert-text)))
+        (character-offset start pos)
+        (delete-between-points start end)
+        (setf (buffer-showing-suggestions-p (point-buffer point)) t)
+        (insert-string end
+                       (subseq insert-text pos)
+                       :attribute 'suggestion-attribute)
+        (when additional-text
+          (insert-string end " ")
+          (insert-string end additional-text
+                         :attribute 'cycling-attribute))))))
+
+(defun unshow-inline-completion (point)
+  (when (buffer-showing-suggestions-p (point-buffer point))
+    (setf (buffer-showing-suggestions-p (point-buffer point)) nil)
+    (let ((*inhibit-did-change-notification* t))
+      (buffer-undo point))))
+
+(defun elt-safety (items index)
+  (if (<= (length items) index)
+      (elt items (1- (length items)))
+      (elt items index)))
+
+(defun show-inline-completion (point items &key (index 0) cycling)
+  (let ((item (elt-safety items index))
+        (buffer (point-buffer point))
+        (*inhibit-did-change-notification* t))
+    (lem-lsp-mode::reset-buffer-diagnostic buffer)
+    (buffer-undo-boundary buffer)
+    (save-excursion
+      (preview-inline-completion-item point
+                                      item
+                                      :additional-text (when cycling
+                                                         (format nil
+                                                                 "[~D/~D]"
+                                                                 (1+ index)
+                                                                 (length items)))))
+    (loop :for v := (sit-for 10)
+          :while (eq v :timeout)
+          :finally (return-from show-inline-completion v))))
+
+(defun prompt-inline-completion (point items &key (index 0) cycling)
+  (when items
+    (let ((buffer (point-buffer point))
+          (key (show-inline-completion point items :index index :cycling cycling)))
       (case (find-copilot-completion-command key)
         (copilot-accept-suggestion
          (read-key)
@@ -443,14 +436,14 @@
         (copilot-next-suggestion
          (read-key)
          (inline-completion point
-                            :trigger-kind client:+trigger-kind.invoked+
+                            :trigger-kind copilot:+trigger-kind.invoked+
                             :index (mod (1+ index) (length items))
                             :cycling t
                             :show-loading-spinner t))
         (copilot-previous-suggestion
          (read-key)
          (inline-completion point
-                            :trigger-kind client:+trigger-kind.invoked+
+                            :trigger-kind copilot:+trigger-kind.invoked+
                             :index (mod (1- index) (length items))
                             :cycling t
                             :show-loading-spinner t))
@@ -460,6 +453,7 @@
          (self-insert 1 (insertion-key-p (read-key)))
          (inline-completion point))
         (otherwise
+         (unshow-inline-completion point)
          (error 'editor-abort :message nil))))))
 
 (defun inline-completion (point &key (trigger-kind 2) (index 0) cycling show-loading-spinner)
@@ -468,8 +462,8 @@
          (spinner (when show-loading-spinner
                     (lem/loading-spinner:start-loading-spinner :line :point point)))
          (request
-           (client:text-document/inline-completion
-            (client)
+           (copilot:text-document/inline-completion
+            (agent)
             :callback (lambda (response)
                         (send-event (lambda ()
                                       (when spinner
@@ -499,14 +493,9 @@
 (defun cancel-inline-completion ()
   (unshow-inline-completion (current-point))
   (when *inline-completion-request*
-    (client:$/cancel-request (client) (jsonrpc:request-id *inline-completion-request*))
+    (copilot:$/cancel-request (agent) (jsonrpc:request-id *inline-completion-request*))
     (setf *inline-completion-request* nil
           *completion-canceled* t)))
-
-(defun notify-rejected ()
-  (when *completion*
-    (copilot:notify-rejected (agent) (gethash "uuid" *completion*))
-    (setf *completion* nil)))
 
 (define-command copilot-complete () ()
   (inline-completion (current-point)))
@@ -526,11 +515,46 @@
 (defparameter *delay-complete* 1)
 (defvar *complete-timer* nil)
 
-(defmethod execute :after ((mode copilot-mode) (command self-insert) argument)
-  (cond (*delay-complete*
-         (if *complete-timer*
-             (stop-timer *complete-timer*)
-             (setf *complete-timer* (make-idle-timer 'copilot-complete :name "Copilot Complete")))
-         (start-timer *complete-timer* *delay-complete* :repeat nil))
-        (t
-         (copilot-complete))))
+(defmacro define-language (mode (&key (language-id (alexandria:required-argument :language-id))))
+  `(progn
+     (add-hook ,(mode-hook-variable mode) 'enable-copilot-mode)
+     (register-language-id ',mode ,language-id)))
+
+(define-language lem-js-mode:js-mode (:language-id "javascript"))
+(define-language lem-rust-mode:rust-mode (:language-id "rust"))
+(define-language lem-go-mode:go-mode (:language-id "go"))
+(define-language lem-lisp-mode:lisp-mode (:language-id "lisp"))
+(define-language lem-markdown-mode:markdown-mode (:language-id "markdown"))
+(define-language lem-c-mode:c-mode (:language-id "c"))
+(define-language lem-css-mode:css-mode (:language-id "css"))
+(define-language lem-dart-mode:dart-mode (:language-id "dart"))
+(define-language lem-json-mode:json-mode (:language-id "json"))
+(define-language lem-lua-mode:lua-mode (:language-id "lua"))
+(define-language lem-nim-mode:nim-mode (:language-id "nim"))
+(define-language lem-ocaml-mode:ocaml-mode (:language-id "ocaml"))
+(define-language lem-python-mode:python-mode (:language-id "python"))
+(define-language lem-scala-mode:scala-mode (:language-id "scala"))
+(define-language lem-scheme-mode:scheme-mode (:language-id "scheme"))
+(define-language lem-sql-mode:sql-mode (:language-id "sql"))
+(define-language lem-terraform-mode:terraform-mode (:language-id "hcl"))
+(define-language lem-typescript-mode:typescript-mode (:language-id "typescript"))
+(define-language lem-xml-mode:xml-mode (:language-id "xml"))
+(define-language lem-yaml-mode:yaml-mode (:language-id "yaml"))
+(define-language lem-swift-mode:swift-mode (:language-id "swift"))
+
+
+;;; test
+(define-command test/copilot-document () ()
+  (let ((response (copilot::request (agent)
+                                    "testing/getDocument"
+                                    (copilot:hash "uri" (buffer-uri (current-buffer))))))
+    (show-message (copilot:pretty-json response))
+    (assert (equal (gethash "text" response)
+                   (buffer-text (current-buffer))))))
+
+(define-command test/copilot-log () ()
+  (let* ((buffer (make-buffer "*copilot-log*" :enable-undo-p nil)))
+    (erase-buffer buffer)
+    (with-open-stream (stream (make-buffer-output-stream (buffer-point buffer)))
+      (copilot::write-log stream))
+    (pop-to-buffer buffer)))
