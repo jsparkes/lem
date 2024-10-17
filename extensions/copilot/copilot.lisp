@@ -26,8 +26,16 @@
   (merge-pathnames "lib/node_modules/copilot-node-server/copilot/dist/language-server.js"
                    (copilot-root)))
 
-(defun installed-copilot-server-p ()
-  (uiop:file-exists-p (copilot-path)))
+(defun setup-agent ()
+  (let ((agent (copilot:run-agent)))
+    (add-hook *exit-editor-hook*
+              (lambda ()
+                (async-process:delete-process (copilot::agent-process agent))))
+    (copilot:connect agent)
+    (copilot:initialize agent)
+    (copilot:initialized agent)
+    (copilot:set-editor-info agent)
+    agent))
 
 (defun run-process ()
   (async-process:create-process (list "node"
