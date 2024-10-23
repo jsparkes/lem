@@ -253,6 +253,7 @@
                "lem-base16-themes"
                #+sbcl
                "lem-elixir-mode"
+               #-ocicl
                "lem-ruby-mode"
                "lem-erlang-mode"
                "lem-documentation-mode"
