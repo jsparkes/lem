@@ -83,6 +83,8 @@
 (define-key *global-keymap* "M-s p" 'isearch-prev-highlight)
 (define-key *global-keymap* "F3" 'isearch-next-highlight)
 (define-key *global-keymap* "Shift-F3" 'isearch-prev-highlight)
+(define-key *global-keymap* "M-s t" 'isearch-toggle-highlighting)
+(define-key *global-keymap* "M-s M-t" 'isearch-toggle-highlighting)
 (define-key *isearch-keymap* "C-M-n" 'isearch-add-cursor-to-next-match)
 
 (defun disable-hook ()
@@ -305,6 +307,7 @@
           (subseq *isearch-string*
                   0
                   (1- (length *isearch-string*))))
+    (funcall *isearch-search-function* (current-point) *isearch-string*)
     (isearch-update-display)))
 
 (define-command isearch-raw-insert () ()
@@ -394,6 +397,7 @@
   (let ((str (yank-from-clipboard-or-killring)))
     (when str
       (setq *isearch-string* str)
+      (funcall *isearch-search-function* (current-point) *isearch-string*)
       (isearch-update-display))))
 
 (defun isearch-add-char (c)
@@ -443,14 +447,16 @@
                    (end point))
         (funcall search-fn end string)
         (funcall search-previous-fn (move-point start end) string)
-        (when (point<= start point)
+        (when (point< end point)
           (move-point point end)))
       (dotimes (_ (abs n) point)
         (unless (funcall search-fn point string)
           (return nil))))))
 
 (define-command isearch-next-highlight (n) (:universal)
-  (search-next-matched (current-point) n))
+  (cond ((zerop n) nil)
+        ((minusp n) (search-next-matched (current-point) (1+ n)))
+        (t (search-next-matched (current-point) n))))
 
 (define-command isearch-prev-highlight (n) (:universal)
   (isearch-next-highlight (- n)))

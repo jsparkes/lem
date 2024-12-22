@@ -205,6 +205,7 @@
    :frame-prompt-window
    :frame-message-window
    :frame-leftside-window
+   :frame-rightside-window
    :notify-frame-redisplay-required
    :map-frame
    :get-frame
@@ -275,6 +276,7 @@
    :*window-show-buffer-functions*
    :*switch-to-buffer-hook*
    :*switch-to-window-hook*
+   :*default-split-action*
    :window-parent
    :scroll
    :window-view-point
@@ -363,7 +365,9 @@
    :side-window
    :side-window-p
    :make-leftside-window
-   :delete-leftside-window)
+   :delete-leftside-window
+   :make-rightside-window
+   :delete-rightside-window)
   ;; popup.lisp
   (:export
    :*default-popup-message-timeout*
@@ -488,6 +492,7 @@
    :exit-editor
    :interactive-p
    :continue-flag
+   :nullify-last-flags
    :pop-up-backtrace
    :call-background-job
    :command-loop-counter
@@ -617,6 +622,7 @@
   (:export
    :color-theme-names
    :define-color-theme
+   :*after-load-theme-hook*
    :load-theme
    :current-theme
    :find-color-theme
@@ -682,6 +688,8 @@
    :set-display-title
    :display-fullscreen-p
    :set-display-fullscreen-p
+   :maximize-frame
+   :minimize-frame
    :make-view
    :view-width
    :view-height

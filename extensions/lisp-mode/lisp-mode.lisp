@@ -57,6 +57,10 @@
                        (lem/detective:make-capture-regex
                         :regex "^(?:\\(defvar |\\(defparameter )"
                         :function #'lem-lisp-mode/detective:capture-reference)
+                       :macro-regex
+                       (lem/detective:make-capture-regex
+                        :regex "^\\(defmacro "
+                        :function #'lem-lisp-mode/detective:capture-reference)
                        :misc-regex
                        (lem/detective:make-capture-regex
                         :regex "^\\(deftest "
@@ -683,7 +687,7 @@
         :do (let* ((pos (xref-location-position xref-location))
                    (buffer (xref-filespec-to-buffer (xref-location-filespec xref-location))))
               (push (make-highlight-overlay pos buffer message source-context)
-                    (buffer-compilation-notes-overlays (current-buffer)))))
+                    (buffer-compilation-notes-overlays buffer))))
 
   (setf (buffer-compilation-notes-timer (current-buffer))
         (start-timer (make-idle-timer 'show-compilation-notes :name "lisp-show-compilation-notes")

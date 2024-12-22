@@ -212,13 +212,17 @@
            (let ((end (current-point)))
              (kill-region start end))))))))
 
-(define-command kill-whole-line () ()
-  "Kill the entire line and the remaining whitespace"
-   (with-point ((start (current-point))
-                (end (current-point)))
-     (line-end end)
-     (kill-region start end))
-   (delete-previous-char))
+(define-command kill-whole-line (&optional (n 1)) (:universal)
+  "If n is positive, kill n whole lines forward starting at the
+beginning of the current line.  If n is 0, do nothing.  And if n
+is negative, kill n lines above without deleting anything on the 
+current line."
+  (cond ((zerop n) nil)
+        ((minusp n) (save-excursion
+                      (move-to-beginning-of-logical-line)
+                      (kill-line n)))
+        (t (progn (move-to-beginning-of-logical-line)
+                  (kill-line n)))))
 
 (defun yank-string (point string)
   (change-yank-start point
@@ -232,7 +236,8 @@
   (let ((string (if (null arg)
                     (yank-from-clipboard-or-killring)
                     (peek-killring-item (current-killring) (1- arg)))))
-    (yank-string (current-point) string)))
+    (when string
+      (yank-string (current-point) string))))
 
 (define-command yank (&optional arg) (:universal-nil)
   "Paste the copied text."
