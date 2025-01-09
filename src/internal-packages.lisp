@@ -94,7 +94,7 @@
    :key-ctrl
    :key-meta
    :key-super
-   :key-hypher
+   :key-hyper
    :key-shift
    :key-sym
    :match-key
@@ -293,6 +293,7 @@
    :window-view
    :window-point
    :window-cursor-invisible-p
+   :window-buffer-switchable-p
    :set-last-print-cursor
    :last-print-cursor-x
    :last-print-cursor-y
@@ -459,6 +460,8 @@
    :*global-keymap*
    :define-key
    :define-keys
+   :undefine-key
+   :undefine-keys
    :keyseq-to-string
    :find-keybind
    :insertion-key-p
@@ -599,7 +602,8 @@
    :wrap-line-attribute
    :inactive-window-background-color
    :redraw-buffer
-   :compute-left-display-area-content)
+   :compute-left-display-area-content
+   :compute-wrap-left-area-content)
   ;; interface.lisp
   (:export
    :with-implementation
